@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:instagram/core/services/event_bus.dart';
@@ -86,17 +87,21 @@ class ProfileController extends GetxController {
       },
     );
 
-    await _userPostsSubscription?.cancel(); 
+    await _userPostsSubscription?.cancel();
 
     // Simpan stream baru ke variabel
-    _userPostsSubscription = getUserPostsUseCase.execute(GetUserPostsParams(profileUserId)).listen((postsResult) {
-      postsResult.fold(
-        (failure) { /* ... */ },
-        (postList) {
-          posts.value = postList;
-        }
-      );
-    });
+    _userPostsSubscription = getUserPostsUseCase
+        .execute(GetUserPostsParams(profileUserId))
+        .listen((postsResult) {
+          postsResult.fold(
+            (failure) {
+              /* ... */
+            },
+            (postList) {
+              posts.value = postList;
+            },
+          );
+        });
 
     // ✅ 2. Ambil postingan YANG BENAR (profileUserId, bukan currentUser.uid)
     getUserPostsUseCase.execute(GetUserPostsParams(profileUserId)).listen((
@@ -145,13 +150,50 @@ class ProfileController extends GetxController {
     });
   }
 
-  void logOut() async {
-    final result = await logOutUseCase(NoParams());
-    result.fold(
-      (failure) => Get.snackbar("Error", failure.message),
-      (success) {EventBus.fireLogout(LogoutEvent());
-      Get.offAll(() => LoginPage());}
-  );}
+  void logOut() {
+    // 1. Tampilkan Dialog Konfirmasi DULU
+    Get.dialog(
+      AlertDialog(
+        title: Text("Log Out"),
+        content: Text("Apakah Anda yakin ingin keluar dari akun ini?"),
+        actions: [
+          // Tombol BATAL
+          TextButton(
+            onPressed: () {
+              Get.back(); // Hanya tutup dialog, jangan lakukan apa-apa
+            },
+            child: Text("Batal", style: TextStyle(color: Colors.grey)),
+          ),
+
+          // Tombol YA, KELUAR
+          TextButton(
+            onPressed: () async {
+              Get.back(); // Tutup dialog dulu
+
+              // 2. Baru jalankan logika Logout di sini
+              final result = await logOutUseCase(NoParams());
+
+              result.fold(
+                (failure) {
+                  Get.snackbar("Error", failure.message);
+                },
+                (success) {
+                  // 3. Bersihkan state aplikasi
+                  EventBus.fireLogout(LogoutEvent());
+
+                  // 4. Pindah ke halaman Login
+                  Get.offAll(() => LoginPage());
+
+                  Get.snackbar("Sukses", "Berhasil Log out!");
+                },
+              );
+            },
+            child: Text("Log Out", style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   void onClose() {

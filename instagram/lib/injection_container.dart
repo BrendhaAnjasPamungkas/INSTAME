@@ -3,21 +3,28 @@ import 'package:get_it/get_it.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:instagram/data/datasources/chat_datasource.dart';
+import 'package:instagram/data/datasources/notification_datasource.dart';
 import 'package:instagram/data/datasources/post_datasource.dart';
 import 'package:instagram/data/datasources/story_datasource.dart';
 import 'package:instagram/data/repositories/chat_repository_impl.dart';
+import 'package:instagram/data/repositories/notification_repository_impl.dart';
 import 'package:instagram/data/repositories/pos_repositories_impl.dart';
 import 'package:instagram/data/repositories/story_repository_impl.dart';
 import 'package:instagram/domain/repositories/chat_repository.dart';
+import 'package:instagram/domain/repositories/notification_repository.dart';
 import 'package:instagram/domain/repositories/post_repositories.dart';
 import 'package:instagram/domain/repositories/story_repository.dart';
 import 'package:instagram/domain/usecase/add_comment_usecase.dart';
 import 'package:instagram/domain/usecase/create_post_usecase.dart';
 import 'package:instagram/domain/usecase/delete_comment_usecase.dart';
+import 'package:instagram/domain/usecase/delete_message_usecase.dart';
 import 'package:instagram/domain/usecase/delete_post_usecase.dart';
 import 'package:instagram/domain/usecase/delete_story_usecase.dart';
+import 'package:instagram/domain/usecase/get_chat_rooms_usecase.dart';
 import 'package:instagram/domain/usecase/get_comment_usecase.dart';
 import 'package:instagram/domain/usecase/get_message_usecase.dart';
+import 'package:instagram/domain/usecase/get_notification_usecase.dart';
+import 'package:instagram/domain/usecase/get_post_by_id_usecase.dart';
 import 'package:instagram/domain/usecase/get_post_usecase.dart';
 import 'package:instagram/domain/usecase/get_story_items_usecase.dart';
 import 'package:instagram/domain/usecase/get_story_usecase.dart';
@@ -110,15 +117,25 @@ void init() {
     () => ChatRepositoryImpl(remoteDataSource: locator()),
   );
   locator.registerLazySingleton<ChatRemoteDataSource>(
-    () => ChatRemoteDataSourceImpl(firestore: locator()),
+    () => ChatRemoteDataSourceImpl(firestore: locator(), cloudinary: locator()),
+  );
+  locator.registerLazySingleton<NotificationRepository>(
+    () => NotificationRepositoryImpl(remoteDataSource: locator()),
+  );
+  locator.registerLazySingleton<NotificationRemoteDataSource>(
+    () => NotificationRemoteDataSourceImpl(firestore: locator()),
   );
 
-  locator.registerLazySingleton(() => GetStoriesUseCase(locator()),);
-  locator.registerLazySingleton(() => GetStoryItemsUseCase(locator()),);
-  locator.registerLazySingleton(() => UploadStoryUseCase(locator()),);
+  locator.registerLazySingleton(() => GetStoriesUseCase(locator()));
+  locator.registerLazySingleton(() => GetStoryItemsUseCase(locator()));
+  locator.registerLazySingleton(() => UploadStoryUseCase(locator()));
   locator.registerLazySingleton(() => DeleteStoryUseCase(locator()));
-  locator.registerLazySingleton(() => DeleteCommentUseCase(locator()),);
-  locator.registerLazySingleton(() => ViewStoryUseCase(locator()),);
+  locator.registerLazySingleton(() => DeleteCommentUseCase(locator()));
+  locator.registerLazySingleton(() => ViewStoryUseCase(locator()));
   locator.registerLazySingleton(() => SendMessageUseCase(locator()));
   locator.registerLazySingleton(() => GetMessagesUseCase(locator()));
+  locator.registerLazySingleton(() => GetChatRoomsUseCase(locator()));
+  locator.registerLazySingleton(() => DeleteMessageUseCase(locator()));
+  locator.registerLazySingleton(() => GetNotificationsUseCase(locator()));
+  locator.registerLazySingleton(() => GetPostByIdUseCase(locator()));
 }

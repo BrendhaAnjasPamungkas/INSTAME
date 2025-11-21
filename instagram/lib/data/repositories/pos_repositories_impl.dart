@@ -12,8 +12,7 @@ import 'package:instagram/data/models/post_models.dart';
 import 'package:instagram/domain/entities/comment.dart';
 import 'package:instagram/domain/entities/post.dart';
 import 'package:instagram/domain/repositories/post_repositories.dart';
-// Hapus import 'dart:async' jika tidak dipakai
-import 'package:cloud_firestore/cloud_firestore.dart'; // Butuh ini untuk Timestamp/DateTime convert jika perlu, atau generate ID
+// Hapus import 'dart:async' jika tidak dipakai // Butuh ini untuk Timestamp/DateTime convert jika perlu, atau generate ID
 
 class PostRepositoryImpl implements PostRepository {
   final PostRemoteDataSource remoteDataSource;
@@ -49,6 +48,15 @@ class PostRepositoryImpl implements PostRepository {
       return Left(ServerFailure(e.message));
     }
   }
+  @override
+Future<Either<Failure, Post>> getPostById(String postId) async {
+  try {
+    final post = await remoteDataSource.getPostById(postId);
+    return Right(post);
+  } on ServerException catch (e) {
+    return Left(ServerFailure(e.message));
+  }
+}
 
   @override
   Future<Either<Failure, void>> createPost(

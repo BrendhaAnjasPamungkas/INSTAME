@@ -1,5 +1,4 @@
 import 'package:equatable/equatable.dart';
-import 'package:instagram/domain/entities/story_item.dart';
 
 class Story extends Equatable {
   final String id; // Ini akan jadi UID pengguna

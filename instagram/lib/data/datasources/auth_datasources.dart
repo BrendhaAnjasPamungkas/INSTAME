@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:instagram/core/errors/exception.dart';
+import 'package:instagram/data/models/notification_model.dart';
 import 'package:instagram/data/models/user_models.dart';
+import 'package:instagram/domain/entities/notification.dart';
 
 abstract class AuthRemoteDataSource {
   Future<UserModel> signUp(
@@ -19,6 +21,7 @@ abstract class AuthRemoteDataSource {
     String targetUserId,
     String currentUserId,
   ) async {}
+ 
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -198,6 +201,11 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         batch.update(targetUserRef, {
           'followers': FieldValue.arrayUnion([currentUserId]),
         });
+        _sendNotification(
+          toUserId: targetUserId,
+          currentUserId: currentUserId,
+          type: NotificationType.follow,
+        );
 
         // Tambahkan ID dia ke 'following' list kita
         batch.update(currentUserRef, {
@@ -209,6 +217,43 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       await batch.commit();
     } catch (e) {
       throw ServerException(e.toString());
+    }
+  }
+  
+  Future<void> _sendNotification({
+    required String toUserId, // Siapa yang dapat notif
+    required String currentUserId, // Siapa yang kirim
+    required NotificationType type,
+    String? postId,
+    String? text,
+    String? postImageUrl, // Opsional: Gambar postingan
+  }) async {
+    if (toUserId == currentUserId) return; // Jangan notif ke diri sendiri
+
+    try {
+      // Ambil data pengirim (kita) agar notifikasi lengkap
+      final userDoc = await firestore
+          .collection('users')
+          .doc(currentUserId)
+          .get();
+      final userData = userDoc.data()!;
+
+      final notif = NotificationModel(
+        id: '',
+        userId: toUserId,
+        fromUserId: currentUserId,
+        fromUsername: userData['username'],
+        fromUserProfileUrl: userData['profileImageUrl'],
+        type: type,
+        postId: postId,
+        postImageUrl: postImageUrl, // Simpan URL gambar post
+        text: text,
+        timestamp: DateTime.now(),
+      );
+
+      await firestore.collection('notifications').add(notif.toJson());
+    } catch (e) {
+      print("Gagal kirim notifikasi: $e"); // Non-blocking error
     }
   }
 }

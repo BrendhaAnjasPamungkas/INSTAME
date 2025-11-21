@@ -4,7 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloudinary_public/cloudinary_public.dart';
 import 'package:instagram/core/errors/exception.dart';
 import 'package:instagram/data/models/comment_models.dart';
+import 'package:instagram/data/models/notification_model.dart';
 import 'package:instagram/data/models/post_models.dart';
+import 'package:instagram/domain/entities/notification.dart';
 import 'package:instagram/domain/entities/post.dart';
 
 abstract class PostRemoteDataSource {
@@ -18,6 +20,7 @@ abstract class PostRemoteDataSource {
   Stream<List<CommentModel>> getComments(String postId);
   Future<void> addComment(CommentModel comment);
   Future<void> deletePost(String postId);
+  Future<PostModel> getPostById(String postId);
   Future<void> toggleLikeComment(
     String postId,
     String commentId,
@@ -51,7 +54,6 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
 
   // Fungsi baru untuk upload ke Cloudinary
 
-
   @override
   Future<void> createPost(PostModel post) async {
     try {
@@ -69,6 +71,7 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
       throw ServerException(e.toString());
     }
   }
+
   @override
   Future<void> deleteComment(String postId, String commentId) async {
     try {
@@ -141,13 +144,41 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
   }
 
   @override
-  Future<void> addComment(CommentModel comment) {
+  Future<void> addComment(CommentModel comment) async {
+    // 1. Tambahkan 'async'
     try {
-      return firestore
+      // 2. Tambahkan dokumen komentar ke Sub-Collection
+      // Gunakan 'await' agar error tertangkap di catch jika gagal
+      await firestore
           .collection('posts')
           .doc(comment.postId)
           .collection('comments')
           .add(comment.toJson());
+
+      // --- 3. LOGIKA NOTIFIKASI (OPSIONAL TAPI DISARANKAN) ---
+      // Kita perlu memberi tahu pemilik postingan kalau ada yang komen
+
+      // A. Ambil data postingan dulu untuk tahu siapa pemiliknya ('authorId')
+      final postDoc = await firestore
+          .collection('posts')
+          .doc(comment.postId)
+          .get();
+
+      if (postDoc.exists) {
+        final postData = postDoc.data()!;
+
+        // B. Panggil fungsi helper notifikasi yang sudah kita buat sebelumnya
+        // (Pastikan fungsi _sendNotification ada di class ini)
+        _sendNotification(
+          toUserId: postData['authorId'], // Kirim ke pemilik post
+          currentUserId: comment.authorId, // Dari saya
+          type: NotificationType.comment,
+          postId: comment.postId,
+          postImageUrl: postData['imageUrl'], // Tampilkan foto post di notif
+          text: comment.content, // Isi komentarnya
+        );
+      }
+      // -------------------------------------------------------
     } catch (e) {
       throw ServerException(e.toString());
     }
@@ -187,6 +218,15 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
         await postRef.update({
           'likes': FieldValue.arrayUnion([userId]),
         });
+        final postAuthorId = doc.data()!['authorId'];
+        final postImage = doc.data()!['imageUrl'];
+        _sendNotification(
+          toUserId: postAuthorId,
+          currentUserId: userId,
+          type: NotificationType.like,
+          postId: postId,
+          postImageUrl: postImage, // Kirim gambar untuk thumbnail notif
+        );
       }
     } catch (e) {
       throw ServerException(e.toString());
@@ -206,32 +246,78 @@ class PostRemoteDataSourceImpl implements PostRemoteDataSource {
       throw ServerException(e.toString());
     }
   }
-@override
+
+ @override
   Future<String> uploadMedia(Uint8List bytes, PostType type) async {
     try {
       final byteData = bytes.buffer.asByteData();
 
-      // --- INI KUNCINYA ---
+      // --- PASTIIN INI BENAR ---
       final resourceType = (type == PostType.video)
-          ? CloudinaryResourceType.Video
+          ? CloudinaryResourceType.Video 
           : CloudinaryResourceType.Image;
+      // -------------------------
 
       CloudinaryResponse response = await cloudinary.uploadFile(
         CloudinaryFile.fromByteData(
           byteData,
           identifier: 'post_${DateTime.now().millisecondsSinceEpoch}',
           folder: "posts",
-          resourceType: resourceType, // <-- Beri tahu Cloudinary
+          resourceType: resourceType, // <-- WAJIB ADA
         ),
       );
       return response.secureUrl;
-    } on CloudinaryException catch (e) {
-      throw ServerException("Upload Gagal: ${e.message}");
+    } catch (e) {
+      throw ServerException("Upload Gagal: $e");
+    }
+  }
+
+  Future<void> _sendNotification({
+    required String toUserId, // Siapa yang dapat notif
+    required String currentUserId, // Siapa yang kirim
+    required NotificationType type,
+    String? postId,
+    String? text,
+    String? postImageUrl, // Opsional: Gambar postingan
+  }) async {
+    if (toUserId == currentUserId) return; // Jangan notif ke diri sendiri
+
+    try {
+      // Ambil data pengirim (kita) agar notifikasi lengkap
+      final userDoc = await firestore
+          .collection('users')
+          .doc(currentUserId)
+          .get();
+      final userData = userDoc.data()!;
+
+      final notif = NotificationModel(
+        id: '',
+        userId: toUserId,
+        fromUserId: currentUserId,
+        fromUsername: userData['username'],
+        fromUserProfileUrl: userData['profileImageUrl'],
+        type: type,
+        postId: postId,
+        postImageUrl: postImageUrl, // Simpan URL gambar post
+        text: text,
+        timestamp: DateTime.now(),
+      );
+
+      await firestore.collection('notifications').add(notif.toJson());
+    } catch (e) {
+      print("Gagal kirim notifikasi: $e"); // Non-blocking error
+    }
+  }
+
+  Future<PostModel> getPostById(String postId) async {
+    try {
+      final doc = await firestore.collection('posts').doc(postId).get();
+      if (!doc.exists) throw ServerException("Postingan tidak ditemukan");
+      return PostModel.fromSnapshot(doc);
     } catch (e) {
       throw ServerException(e.toString());
     }
   }
-  
+
   // ... (sisa kode tetap sama)
 }
-

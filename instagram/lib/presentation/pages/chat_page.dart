@@ -70,9 +70,19 @@ class ChatPage extends StatelessWidget {
                   final msg = controller.messages[index];
                   final bool isMe = msg.senderId == currentUserId;
 
-                  return ChatBubble(
-                    text: msg.text,
-                    isMe: isMe,
+                  return GestureDetector(
+                    onLongPress: () {
+                      // Hanya boleh hapus pesan SENDIRI
+                      if (isMe) {
+                        controller.deleteMessage(msg);
+                      }
+                    },
+                    child: ChatBubble(
+                      text: msg.text,
+                      isMe: isMe,
+                      type: msg.type,
+                      mediaUrl: msg.mediaUrl,
+                    ),
                   );
                 },
               );
@@ -88,6 +98,10 @@ class ChatPage extends StatelessWidget {
             ),
             child: Row(
               children: [
+                IconButton(
+                  icon: Icon(Icons.add_circle_outline, color: Colors.white, size: 28),
+                  onPressed: () => controller.pickAndSendMedia(),
+                ),
                 Expanded(
                   child: Container(
                     padding: EdgeInsets.symmetric(horizontal: 16),

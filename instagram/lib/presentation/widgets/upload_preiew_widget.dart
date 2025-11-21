@@ -1,59 +1,106 @@
-import 'dart:io';
+import 'dart:io'; // Wajib untuk File
+import 'package:flutter/foundation.dart'; // Wajib untuk kIsWeb
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:instagram/domain/entities/post.dart'; // Import PostType
+import 'package:instagram/domain/entities/post.dart';
 import 'package:video_player/video_player.dart';
 
-class UploadPreviewWidget extends StatefulWidget {
+// --- 1. CONTROLLER KHUSUS ---
+class UploadPreviewController extends GetxController {
   final XFile file;
   final PostType type;
 
-  const UploadPreviewWidget({Key? key, required this.file, required this.type}) : super(key: key);
+  VideoPlayerController? videoController;
+  var isVideoInitialized = false.obs;
+
+  UploadPreviewController({required this.file, required this.type});
 
   @override
-  _UploadPreviewWidgetState createState() => _UploadPreviewWidgetState();
-}
+  void onInit() {
+    super.onInit();
+    if (type == PostType.video) {
+      _initializeVideo();
+    }
+  }
 
-class _UploadPreviewWidgetState extends State<UploadPreviewWidget> {
-  VideoPlayerController? _videoController;
+  void _initializeVideo() async {
+    try {
+      // --- PERBAIKAN DI SINI (DETEKSI PLATFORM) ---
+      if (kIsWeb) {
+        // WEB: Gunakan networkUrl (Blob URL)
+        videoController = VideoPlayerController.networkUrl(Uri.parse(file.path));
+      } else {
+        // HP (Android/iOS): Gunakan file (Path Lokal)
+        videoController = VideoPlayerController.file(File(file.path));
+      }
+      // -------------------------------------------
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.type == PostType.video) {
-      // XFile.path di Web adalah Blob URL (network)
-      // Di Mobile adalah File Path
-      _videoController = VideoPlayerController.networkUrl(Uri.parse(widget.file.path))
-        ..initialize().then((_) {
-          setState(() {});
-          _videoController!.setLooping(true);
-          _videoController!.play();
-        });
+      await videoController!.initialize();
+      videoController!.setLooping(true);
+      videoController!.setVolume(1.0);
+      videoController!.play();
+      
+      isVideoInitialized.value = true;
+    } catch (e) {
+      print("Error initializing preview video: $e");
     }
   }
 
   @override
-  void dispose() {
-    _videoController?.dispose();
-    super.dispose();
+  void onClose() {
+    videoController?.pause(); 
+    videoController?.dispose();
+    super.onClose();
   }
+}
+
+// --- 2. WIDGET STATELESS ---
+class UploadPreviewWidget extends StatelessWidget {
+  final XFile file;
+  final PostType type;
+
+  const UploadPreviewWidget({
+    Key? key, 
+    required this.file, 
+    required this.type
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    if (widget.type == PostType.video) {
-      return _videoController != null && _videoController!.value.isInitialized
-          ? AspectRatio(
-              aspectRatio: _videoController!.value.aspectRatio,
-              child: VideoPlayer(_videoController!),
-            )
-          : Center(child: CircularProgressIndicator());
-    } else {
-      // Tampilkan Gambar (Support Web & Mobile)
-      return Image.network(
-        widget.file.path,
-        fit: BoxFit.cover,
-        width: double.infinity,
-      );
-    }
+    final String tag = file.path;
+
+    return GetBuilder<UploadPreviewController>(
+      tag: tag,
+      init: UploadPreviewController(file: file, type: type),
+      dispose: (_) {
+        Get.delete<UploadPreviewController>(tag: tag);
+      },
+      builder: (controller) {
+        // --- TAMPILAN VIDEO ---
+        if (type == PostType.video) {
+          return Obx(() {
+            if (!controller.isVideoInitialized.value) {
+              return Center(child: CircularProgressIndicator(color: Colors.white));
+            }
+            return AspectRatio(
+              aspectRatio: controller.videoController!.value.aspectRatio,
+              child: VideoPlayer(controller.videoController!),
+            );
+          });
+        } 
+        
+        // --- TAMPILAN GAMBAR (PERBAIKAN DI SINI) ---
+        else {
+          if (kIsWeb) {
+            // Web: Image.network (Blob URL)
+            return Image.network(file.path, fit: BoxFit.cover, width: double.infinity);
+          } else {
+            // HP: Image.file (Path Lokal) - INI YANG BIKIN ERROR KEMARIN
+            return Image.file(File(file.path), fit: BoxFit.cover, width: double.infinity);
+          }
+        }
+      },
+    );
   }
 }

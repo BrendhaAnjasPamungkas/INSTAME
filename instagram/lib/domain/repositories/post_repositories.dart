@@ -15,5 +15,6 @@ abstract class PostRepository {
   Future<Either<Failure, void>> deletePost(String postId);
   Future<Either<Failure, void>> toggleLikeComment(String postId, String commentId, String userId);
   Future<Either<Failure, void>> deleteComment(String postId, String commentId);
+  Future<Either<Failure, Post>> getPostById(String postId);
   
 }

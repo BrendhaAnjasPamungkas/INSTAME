@@ -64,4 +64,5 @@ class StoryRepositoryImpl implements StoryRepository {
       return Left(ServerFailure(e.message));
     }
   }
+
 }

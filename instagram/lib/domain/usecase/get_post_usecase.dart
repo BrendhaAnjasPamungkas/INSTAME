@@ -20,3 +20,4 @@ class GetPostsUseCase {
     return repository.getPosts(params.followingIds);
   }
 }
+

@@ -12,6 +12,7 @@ abstract class StoryRepository {
   Future<Either<Failure, void>> deleteStory(String storyId, String authorId);
   Future<Either<Failure, void>> viewStory(String storyId, String viewerId);
   
+  
   // Upload satu story item
   Future<Either<Failure, void>> uploadStory(Uint8List imageBytes, StoryType type, String authorId, String authorUsername, String? authorProfileUrl);
 }

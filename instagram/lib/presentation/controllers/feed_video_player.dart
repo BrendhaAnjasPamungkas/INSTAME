@@ -2,47 +2,114 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:video_player/video_player.dart';
 
-// --- CONTROLLER KHUSUS VIDEO ---
 class FeedVideoController extends GetxController {
   final String url;
-  late VideoPlayerController videoController;
+  
+  // Nullable controller
+  VideoPlayerController? videoController; 
   
   var isInitialized = false.obs;
   var isPlaying = false.obs;
+  var isBuffering = false.obs;
+  var hasError = false.obs;
+  
+  String? errorMessage;
 
   FeedVideoController(this.url);
 
   @override
   void onInit() {
     super.onInit();
-    // Paksa HTTPS agar aman di web/mobile
-    String secureUrl = url.startsWith('http://') ? url.replaceFirst('http://', 'https://') : url;
+    _initializeVideo();
+  }
+
+  Future<void> _initializeVideo() async {
+    try {
+      hasError.value = false; 
+      isInitialized.value = false;
+
+      String secureUrl = url.trim();
+      if (secureUrl.startsWith('http://')) {
+        secureUrl = secureUrl.replaceFirst('http://', 'https://');
+      }
+
+      // Dispose controller lama jika ada
+      videoController?.dispose();
+
+      videoController = VideoPlayerController.networkUrl(
+        Uri.parse(secureUrl),
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      );
+
+      // --- PERBAIKAN: Tambahkan '!' karena kita yakin videoController sudah diisi ---
+      await videoController!.initialize();
+      await videoController!.setLooping(true);
+      await videoController!.setVolume(1.0);
+
+      isInitialized.value = true;
+
+      videoController!.addListener(_videoListener);
+
+    } catch (e) {
+      print("VIDEO INIT GAGAL: $e");
+      hasError.value = true;
+      errorMessage = e.toString();
+    }
+  }
+
+  void _videoListener() {
+    // Cek null safety
+    if (videoController == null || isClosed) return;
     
-    videoController = VideoPlayerController.networkUrl(Uri.parse(secureUrl))
-      ..initialize().then((_) {
-        isInitialized.value = true;
-        videoController.setLooping(true); // Loop video di feed
-      });
+    if (isInitialized.value) {
+      // --- PERBAIKAN: Tambahkan '!' di sini juga ---
+      if (isPlaying.value != videoController!.value.isPlaying) {
+        isPlaying.value = videoController!.value.isPlaying;
+      }
+      if (isBuffering.value != videoController!.value.isBuffering) {
+        isBuffering.value = videoController!.value.isBuffering;
+      }
+      
+      if (videoController!.value.hasError) {
+        print("VIDEO PLAYBACK ERROR: ${videoController!.value.errorDescription}");
+        hasError.value = true;
+        videoController!.removeListener(_videoListener);
+      }
+    }
   }
   
-  void togglePlay() {
-    if (videoController.value.isPlaying) {
-      videoController.pause();
-      isPlaying.value = false;
-    } else {
-      videoController.play();
-      isPlaying.value = true;
+  void retryLoad() {
+    _initializeVideo();
+  }
+
+  void togglePlay() async {
+    if (!isInitialized.value || hasError.value || videoController == null) return;
+
+    try {
+      // --- PERBAIKAN: Tambahkan '!' ---
+      if (videoController!.value.isPlaying) {
+        await videoController!.pause();
+        isPlaying.value = false; 
+      } else {
+        if (videoController!.value.position >= videoController!.value.duration) {
+           await videoController!.seekTo(Duration.zero);
+        }
+        await videoController!.play();
+        isPlaying.value = true; 
+      }
+    } catch (e) {
+      print("Video Toggle Error: $e");
     }
   }
 
   @override
   void onClose() {
-    videoController.dispose(); // Bersihkan memori saat scroll lewat
+    videoController?.removeListener(_videoListener);
+    videoController?.dispose();
     super.onClose();
   }
 }
 
-// --- WIDGET STATELESS ---
 class FeedVideoPlayer extends StatelessWidget {
   final String url;
 
@@ -50,39 +117,80 @@ class FeedVideoPlayer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Gunakan URL sebagai TAG agar setiap video punya controller sendiri-sendiri
     final controller = Get.put(FeedVideoController(url), tag: url);
 
     return Obx(() {
-      if (!controller.isInitialized.value) {
+      if (controller.hasError.value) {
         return Container(
-          height: 300, // Tinggi sementara saat loading
+          height: 300,
+          width: double.infinity,
+          color: Colors.grey[900],
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.error_outline, color: Colors.red, size: 40),
+              SizedBox(height: 8),
+              Text("Video gagal dimuat", style: TextStyle(color: Colors.white)),
+              SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => controller.retryLoad(), 
+                icon: Icon(Icons.refresh, color: Colors.white),
+                label: Text("Coba Lagi", style: TextStyle(color: Colors.white)),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.grey[800]),
+              )
+            ],
+          ),
+        );
+      }
+
+      if (!controller.isInitialized.value || controller.videoController == null) {
+        return Container(
+          height: 300,
+          width: double.infinity,
           color: Colors.grey[900],
           child: Center(child: CircularProgressIndicator(color: Colors.white)),
         );
       }
 
-      return GestureDetector(
-        onTap: () => controller.togglePlay(),
+      return AspectRatio(
+        // --- PERBAIKAN: Tambahkan '!' ---
+        aspectRatio: controller.videoController!.value.aspectRatio,
         child: Stack(
           alignment: Alignment.center,
           children: [
-            // Video
-            AspectRatio(
-              aspectRatio: controller.videoController.value.aspectRatio,
-              child: VideoPlayer(controller.videoController),
-            ),
+            VideoPlayer(controller.videoController!),
             
-            // Ikon Play (Muncul jika pause)
-            if (!controller.isPlaying.value)
-              Container(
-                decoration: BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
-                padding: EdgeInsets.all(12),
-                child: Icon(Icons.play_arrow, color: Colors.white, size: 40),
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque, 
+                onTap: () => controller.togglePlay(),
+                child: Container(
+                  color: Colors.transparent, 
+                  child: Center(
+                    child: _buildOverlayIcon(controller),
+                  ),
+                ),
               ),
+            ),
           ],
         ),
       );
     });
+  }
+
+  Widget _buildOverlayIcon(FeedVideoController controller) {
+    if (controller.isBuffering.value) {
+      return CircularProgressIndicator(color: Colors.white);
+    }
+    
+    if (!controller.isPlaying.value) {
+      return Container(
+        decoration: BoxDecoration(color: Colors.black45, shape: BoxShape.circle),
+        padding: EdgeInsets.all(12),
+        child: Icon(Icons.play_arrow, color: Colors.white, size: 50),
+      );
+    }
+
+    return SizedBox.shrink();
   }
 }

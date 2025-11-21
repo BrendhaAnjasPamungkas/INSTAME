@@ -8,6 +8,7 @@ import 'package:instagram/injection_container.dart';
 import 'package:instagram/presentation/controllers/profile_controller.dart';
 import 'package:instagram/presentation/pages/chat_page.dart';
 import 'package:instagram/presentation/pages/edit_profile_page.dart';
+import 'package:instagram/presentation/pages/post_detail_page.dart';
 import 'package:instagram/presentation/widgets/main_widget.dart';
 
 class ProfilePage extends StatelessWidget {
@@ -238,25 +239,33 @@ class ProfilePage extends StatelessWidget {
         final post = posts[index];
 
         // --- LOGIKA VIDEO vs GAMBAR ---
-        if (post.type == PostType.video) {
-          // Tampilan untuk Video (Placeholder Hitam + Ikon Play)
-          // (Idealnya pakai library 'video_thumbnail' atau fitur Cloudinary,
-          // tapi ini solusi cepat agar tidak error)
-          return Container(
-            color: Colors.black,
-            child: Center(
-              child: Icon(Icons.play_arrow, color: Colors.white, size: 40),
-            ),
-          );
-        } else {
-          // Tampilan untuk Gambar
-          return CachedNetworkImage(
-            imageUrl: post.imageUrl,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => Container(color: Colors.grey[800]),
-            errorWidget: (context, url, error) => Icon(Icons.error),
-          );
-        }
+        return GestureDetector(
+          onTap: () {
+            // Navigasi ke Post Detail
+           Get.to(() => PostDetailPage(
+              posts: controller.posts.value, // Kirim list
+              initialIndex: index,           // Kirim posisi klik
+            ));
+          },
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Gambar Postingan
+              CachedNetworkImage(
+                imageUrl: post.imageUrl,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => Container(color: Colors.grey[800]),
+                errorWidget: (context, url, error) => Icon(Icons.error),
+              ),
+              
+              // (Opsional tapi Bagus) Ikon Play jika itu Video
+              if (post.type == PostType.video)
+                Center(
+                  child: Icon(Icons.play_arrow, color: Colors.white, size: 30),
+                ),
+            ],
+          ),
+        );
       },
     );
   }
