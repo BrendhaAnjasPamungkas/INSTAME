@@ -1,13 +1,18 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:instagram/domain/entities/notification.dart';
+import 'package:instagram/domain/entities/user.dart';
 import 'package:instagram/presentation/controllers/notification_controller.dart';
-import 'package:instagram/presentation/pages/commen2_page.dart';
+import 'package:instagram/presentation/pages/comments_page.dart';
+import 'package:instagram/presentation/pages/post_detail_page.dart';
+import 'package:instagram/presentation/pages/profile_page.dart';
 import 'package:instagram/presentation/widgets/main_widget.dart';
+// --- IMPORT UNIVERSAL IMAGE ---
+import 'package:instagram/presentation/widgets/universal_image.dart';
 
 class ActivityPage extends StatelessWidget {
-  final controller = Get.put(NotificationController());
+  // Gunakan Get.put agar controller dibuat
+  final NotificationController controller = Get.put(NotificationController());
 
   @override
   Widget build(BuildContext context) {
@@ -17,9 +22,7 @@ class ActivityPage extends StatelessWidget {
       ),
       body: Obx(() {
         if (controller.notifications.isEmpty) {
-          return Center(
-            child: W.text(data: "Belum ada notifikasi.", color: Colors.white),
-          );
+          return Center(child: W.text(data: "Belum ada notifikasi."));
         }
 
         return ListView.builder(
@@ -27,68 +30,122 @@ class ActivityPage extends StatelessWidget {
           itemBuilder: (context, index) {
             final notif = controller.notifications[index];
 
-            return ListTile(
-              leading: ClipOval(
-                child: Container(
-                  width: 40, // Ukuran standar avatar di ListTile
+            // --- INI PERBAIKANNYA (DATA LIVE) ---
+            // Kita bungkus ListTile dengan Obx (atau bagian yg butuh data live)
+            return Obx(() {
+              // Cek apakah ada data user terbaru di cache?
+              final UserEntity? liveUser =
+                  controller.userCache[notif.fromUserId];
+
+              // Prioritaskan data live, kalau belum ada pakai data snapshot notif
+              final String displayPicUrl =
+                  liveUser?.profileImageUrl ?? notif.fromUserProfileUrl ?? "";
+              final String displayUsername =
+                  liveUser?.username ?? notif.fromUsername;
+
+              return ListTile(
+                leading: Container(
+                  width: 40,
                   height: 40,
-                  color: Colors.grey[800], // Warna background dasar
-                  child:
-                      (notif.fromUserProfileUrl != null &&
-                          notif.fromUserProfileUrl!.isNotEmpty)
-                      ? CachedNetworkImage(
-                          imageUrl: notif.fromUserProfileUrl!,
-                          fit: BoxFit.cover,
-                          // Tampilkan container kosong saat loading
-                          placeholder: (context, url) =>
-                              Container(color: Colors.grey[800]),
-                          // Tampilkan Icon Person jika URL error/gambar tidak ditemukan
-                          errorWidget: (context, url, error) =>
-                              Icon(Icons.person, color: Colors.white),
-                        )
-                      // Tampilkan Icon Person jika URL memang kosong/null dari database
-                      : Icon(Icons.person, color: Colors.white),
-                ),
-              ),
-
-              title: W.richText(
-                children: [
-                  W.textSpan(
-                    text: "${notif.fromUsername} ",
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.grey[800],
                   ),
-                  W.textSpan(text: _getNotifText(notif), color: Colors.white),
-                ],
-              ),
-              subtitle: W.text(
-                data: _getTimeAgo(notif.timestamp),
-                color: Colors.grey,
-              ),
-              trailing: _getTrailingWidget(notif),
-              onTap: () {
-                // 1. JIKA NOTIFIKASI KOMENTAR -> Ke CommentsPage
-                if (notif.type == NotificationType.comment) {
-                  if (notif.postId != null) {
-                    Get.to(() => CommentsPage(postId: notif.postId!));
-                  }
-                }
-                // 2. JIKA NOTIFIKASI LIKE -> Ke PostDetailPage (FEED)
-                else if (notif.type == NotificationType.like) {
-                  if (notif.postId != null) {
-                    // SEMENTARA: Tampilkan snackbar
-                    Get.snackbar("Info", "Buka postingan ID: ${notif.postId}");
+                  child: Padding(
+                    padding: const EdgeInsets.all(1.0),
+                    child: UniversalImage(
+                      imageUrl: displayPicUrl, // <-- GUNAKAN URL LIVE
+                      width: 40,
+                      height: 40,
+                      isCircle: true,
+                    ),
+                  ),
+                ),
+                title: W.richText(
+                  children: [
+                    W.textSpan(
+                      text: "$displayUsername ",
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ), // <-- GUNAKAN USERNAME LIVE
+                    W.textSpan(text: _getNotifText(notif), color: Colors.white),
+                  ],
+                ),
+                subtitle: W.text(
+                  data: _getTimeAgo(notif.timestamp),
+                  color: Colors.grey,
+                ),
 
-                    // NANTI: Kita akan implementasi GetPostByIdUseCase
-                    // Get.to(() => PostDetailPage(postId: notif.postId!));
+                trailing: _buildTrailingWidget(notif),
+
+                onTap: () {
+                  if (notif.type == NotificationType.comment) {
+                    if (notif.postId != null)
+                      Get.to(() => CommentsPage(postId: notif.postId!));
+                  } else if (notif.type == NotificationType.like) {
+                    if (notif.postId != null) {
+                      Get.to(() => PostDetailPage(postId: notif.postId!));
+                    }
+                  } else if (notif.type == NotificationType.follow) {
+                    Get.to(() => ProfilePage(userId: notif.fromUserId));
                   }
-                }
-              },
-            );
+                },
+              );
+            });
           },
         );
       }),
     );
+  }
+
+  // --- LOGIKA TOMBOL FOLLOW CERDAS ---
+  Widget? _buildTrailingWidget(NotificationEntity notif) {
+    if (notif.type == NotificationType.follow) {
+      // Bungkus dengan Obx agar tombol berubah real-time
+      return Obx(() {
+        final currentUser = controller.currentUser.value;
+        if (currentUser == null) return SizedBox.shrink(); // Loading state
+
+        // Cek apakah kita sudah follow dia
+        final isFollowing = currentUser.following.contains(notif.fromUserId);
+
+        return SizedBox(
+          width: 120, // Batasi lebar agar rapi
+          height: 35,
+          child: W.button(
+            onPressed: () {
+              controller.toggleFollow(notif.fromUserId);
+            },
+            // Ubah teks dan warna berdasarkan status
+            child: W.text(
+              data: isFollowing ? "Following" : "Follow Back",
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+            backgroundColor: isFollowing ? Colors.grey[800] : Colors.blue,
+          ),
+        );
+      });
+    }
+
+    // --- 2. GANTI PREVIEW POSTINGAN DENGAN UNIVERSAL IMAGE ---
+    if (notif.postImageUrl != null) {
+      return SizedBox(
+        width: 40,
+        height: 40,
+        child: UniversalImage(imageUrl: notif.postImageUrl, fit: BoxFit.cover),
+      );
+    }
+    // ---------------------------------------------------------
+    return null;
+  }
+
+  String _getTimeAgo(DateTime date) {
+    final diff = DateTime.now().difference(date);
+    if (diff.inDays > 0) return "${diff.inDays}h";
+    if (diff.inHours > 0) return "${diff.inHours}j";
+    if (diff.inMinutes > 0) return "${diff.inMinutes}m";
+    return "Baru saja";
   }
 
   String _getNotifText(NotificationEntity notif) {
@@ -101,35 +158,4 @@ class ActivityPage extends StatelessWidget {
         return "mulai mengikuti anda.";
     }
   }
-
-  Widget? _getTrailingWidget(NotificationEntity notif) {
-    if (notif.type == NotificationType.follow) {
-      return W.button(
-        onPressed: () {},
-        child: W.text(data: "Follow", color: Colors.white),
-
-        padding: EdgeInsets.symmetric(horizontal: 16),
-      );
-    }
-    if (notif.postImageUrl != null) {
-      return Container(
-        width: 40,
-        height: 40,
-        child: CachedNetworkImage(
-          imageUrl: notif.postImageUrl!,
-          fit: BoxFit.cover,
-        ),
-      );
-    }
-    return null;
-  }
-}
-
-// --- FUNGSI HELPER WAKTU ---
-String _getTimeAgo(DateTime date) {
-  final diff = DateTime.now().difference(date);
-  if (diff.inDays > 0) return "${diff.inDays}h"; // Hari
-  if (diff.inHours > 0) return "${diff.inHours}j"; // Jam
-  if (diff.inMinutes > 0) return "${diff.inMinutes}m"; // Menit
-  return "Baru saja";
 }

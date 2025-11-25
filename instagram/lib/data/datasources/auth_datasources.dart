@@ -13,6 +13,8 @@ abstract class AuthRemoteDataSource {
     String password,
   );
   Future<UserCredential> signIn(String email, String password);
+  Future<void> sendPasswordResetEmail(String email);
+  Future<void> sendEmailVerification();
   Future<UserModel> getUser(String uid);
   Future<void> logOut();
   Future<List<UserModel>> searchUsers(String query);
@@ -86,6 +88,27 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       await firestore.collection('users').doc(uid).update(dataToUpdate);
     } catch (e) {
       throw ServerException(e.toString());
+    }
+  }
+  Future<void> sendPasswordResetEmail(String email) async {
+    try {
+      await firebaseAuth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      throw ServerException(e.message ?? "Gagal mengirim email reset.");
+    } catch (e) {
+      throw ServerException(e.toString());
+    }
+  }
+
+  @override
+  Future<void> sendEmailVerification() async {
+    try {
+      final user = firebaseAuth.currentUser;
+      if (user != null && !user.emailVerified) {
+        await user.sendEmailVerification();
+      }
+    } catch (e) {
+      throw ServerException("Gagal kirim verifikasi: ${e.toString()}");
     }
   }
 

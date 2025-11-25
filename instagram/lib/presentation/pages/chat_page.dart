@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:instagram/injection_container.dart';
 import 'package:instagram/presentation/controllers/chat_controller.dart';
+import 'package:instagram/presentation/pages/profile_page.dart';
 import 'package:instagram/presentation/widgets/chat_bubblw.dart';
 import 'package:instagram/presentation/widgets/main_widget.dart';
 
@@ -14,7 +15,7 @@ class ChatPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Buat controller dengan TAG unik (ID user lawan) 
+    // Buat controller dengan TAG unik (ID user lawan)
     // supaya bisa chat dengan banyak orang berbeda tanpa bentrok
     final ChatController controller = Get.put(
       ChatController(otherUserId: otherUserId),
@@ -30,25 +31,34 @@ class ChatPage extends StatelessWidget {
           final user = controller.otherUser.value;
           if (user == null) return W.text(data: "Loading...");
 
-          return Row(
-            children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.grey[800],
-                backgroundImage: (user.profileImageUrl != null)
-                    ? CachedNetworkImageProvider(user.profileImageUrl!)
-                    : null,
-                child: (user.profileImageUrl == null) 
-                    ? Icon(Icons.person, size: 20) : null,
-              ),
-              W.gap(width: 10),
-              W.text(
-                data: user.username, 
-                fontWeight: FontWeight.bold,
-                fontSize: 16
-              ),
-            ],
+          // --- BUNGKUS DENGAN GESTURE DETECTOR ---
+          return GestureDetector(
+            onTap: () {
+              // Navigasi ke Profil Lawan Bicara
+              Get.to(() => ProfilePage(userId: otherUserId));
+            },
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: Colors.grey[800],
+                  backgroundImage: (user.profileImageUrl != null)
+                      ? CachedNetworkImageProvider(user.profileImageUrl!)
+                      : null,
+                  child: (user.profileImageUrl == null)
+                      ? Icon(Icons.person, size: 20)
+                      : null,
+                ),
+                W.gap(width: 10),
+                W.text(
+                  data: user.username,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ],
+            ),
           );
+          // ---------------------------------------
         }),
       ),
       body: Column(
@@ -58,10 +68,13 @@ class ChatPage extends StatelessWidget {
             child: Obx(() {
               if (controller.messages.isEmpty) {
                 return Center(
-                  child: W.text(data: "Mulai percakapan 👋", color: Colors.grey),
+                  child: W.text(
+                    data: "Mulai percakapan 👋",
+                    color: Colors.grey,
+                  ),
                 );
               }
-              
+
               return ListView.builder(
                 controller: controller.scrollController,
                 itemCount: controller.messages.length,
@@ -90,43 +103,52 @@ class ChatPage extends StatelessWidget {
           ),
 
           // 2. INPUT TEXT
-          Container(
-            padding: EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.black,
-              border: Border(top: BorderSide(color: Colors.grey[900]!)),
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: Icon(Icons.add_circle_outline, color: Colors.white, size: 28),
-                  onPressed: () => controller.pickAndSendMedia(),
-                ),
-                Expanded(
-                  child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[900],
-                      borderRadius: BorderRadius.circular(30),
+          Padding(
+            padding: EdgeInsets.only(bottom: 40),
+            child: Container(
+              width: Get.width,
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black,
+                border: Border(top: BorderSide(color: Colors.grey[900]!)),
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.add_circle_outline,
+                      color: Colors.white,
+                      size: 28,
                     ),
-                    child: TextField( // Gunakan TextField biasa agar lebih fleksibel di row
-                      controller: controller.textController,
-                      style: TextStyle(color: Colors.white),
-                      decoration: InputDecoration(
-                        hintText: "Kirim pesan...",
-                        hintStyle: TextStyle(color: Colors.grey[500]),
-                        border: InputBorder.none,
+                    onPressed: () => controller.pickAndSendMedia(),
+                  ),
+                  Expanded(
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[900],
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: TextField(
+                        // Gunakan TextField biasa agar lebih fleksibel di row
+                        controller: controller.textController,
+                        style: TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: "Kirim pesan...",
+                          hintStyle: TextStyle(color: Colors.grey[500]),
+                          border: InputBorder.none,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                W.gap(width: 8),
-                // Tombol Kirim
-                IconButton(
-                  icon: Icon(Icons.send, color: Colors.blue),
-                  onPressed: () => controller.sendMessage(),
-                ),
-              ],
+                  W.gap(width: 8),
+                  // Tombol Kirim
+                  IconButton(
+                    icon: Icon(Icons.send, color: Colors.blue),
+                    onPressed: () => controller.sendMessage(),
+                  ),
+                ],
+              ),
             ),
           ),
         ],

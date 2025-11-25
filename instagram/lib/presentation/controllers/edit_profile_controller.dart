@@ -1,24 +1,29 @@
 import 'dart:typed_data';
-
 import 'package:cloudinary_public/cloudinary_public.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart'; // Perlu ini untuk Navigator & FocusManager
 import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:instagram/core/services/event_bus.dart';
 import 'package:instagram/domain/entities/user.dart';
 import 'package:instagram/domain/usecase/update_user_data_usecase.dart';
-import 'package:instagram/injection_container.dart';// Import locator
+import 'package:instagram/injection_container.dart';
 
 class EditProfileController extends GetxController {
-  final UpdateUserDataUseCase updateUserDataUseCase =
-      locator<UpdateUserDataUseCase>();
+  final UpdateUserDataUseCase updateUserDataUseCase = locator<UpdateUserDataUseCase>();
   final CloudinaryPublic cloudinary = locator<CloudinaryPublic>();
-
+  
   final UserEntity currentUser;
 
   var isLoading = false.obs;
+  
+  // Gambar lokal yang baru dipilih
   final Rx<XFile?> selectedImage = Rx(null);
-  final ImagePicker _picker = ImagePicker();
+  
+  // Status Hapus Foto
+  var isPhotoRemoved = false.obs; 
 
+  final ImagePicker _picker = ImagePicker();
+  
   late TextEditingController usernameController;
   late TextEditingController bioController;
 
@@ -26,31 +31,37 @@ class EditProfileController extends GetxController {
     usernameController = TextEditingController(text: currentUser.username);
     bioController = TextEditingController(text: currentUser.bio ?? "");
   }
+
   Future<void> pickImage() async {
     try {
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 25, // Kompresi
+        imageQuality: 25,
       );
       if (image != null) {
         selectedImage.value = image;
+        isPhotoRemoved.value = false; // Reset status hapus
       }
     } catch (e) {
       Get.snackbar("Error", "Gagal mengambil gambar: $e");
     }
   }
 
-  // Fungsi untuk menyimpan
-Future<void> saveProfile() async {
-    // 1. WAJIB: Tutup keyboard sebelum melakukan apa pun
-    FocusManager.instance.primaryFocus?.unfocus();
+  void removePhoto() {
+    selectedImage.value = null;
+    isPhotoRemoved.value = true;
+  }
 
+  Future<void> saveProfile() async {
+    // 1. Tutup keyboard
+    FocusManager.instance.primaryFocus?.unfocus();
+    
     isLoading.value = true;
     
     String? newImageUrl;
 
     try {
-      // ... (Logika upload gambar ke Cloudinary TETAP SAMA) ...
+      // 2. Upload Foto (Jika ada gambar baru)
       if (selectedImage.value != null) {
         final Uint8List imageBytes = await selectedImage.value!.readAsBytes();
         final byteData = imageBytes.buffer.asByteData();
@@ -63,11 +74,13 @@ Future<void> saveProfile() async {
           ),
         );
         newImageUrl = response.secureUrl;
+      } 
+      // 3. Cek Hapus Foto
+      else if (isPhotoRemoved.value) {
+        newImageUrl = ""; 
       }
 
-      // ... (Logika update Firestore TETAP SAMA) ...
-     // ...
-      // TAMBAHKAN 'final result =' DI DEPANNYA
+      // 4. Update Firestore
       final result = await updateUserDataUseCase(
         UpdateUserDataParams(
           uid: currentUser.uid,
@@ -76,7 +89,8 @@ Future<void> saveProfile() async {
           newProfileImageUrl: newImageUrl,
         ),
       );
-      // Buat object user baru
+
+      // 5. Buat Object User Baru
       final updatedUser = currentUser.copyWith(
         username: usernameController.text,
         bio: bioController.text,
@@ -89,24 +103,25 @@ Future<void> saveProfile() async {
         (failure) {
           Get.snackbar("Error", failure.message);
         },
-        (success) async { // Tambahkan async di sini
-          print("DEBUG: Update sukses, menampilkan snackbar...");
+        (success) async { 
+          // 6. Beri tahu aplikasi
+          EventBus.fireProfileUpdate(ProfileUpdateEvent());
           
-          // 2. Tampilkan Snackbar
           Get.snackbar("Sukses", "Profil berhasil diperbarui.");
           
-          // 3. TUNGGU sebentar agar snackbar muncul dan UI stabil
-          // (Ini juga memberi waktu agar keyboard benar-benar tertutup)
-          Future.delayed(Duration(milliseconds: 500), () {
-          // GANTI Get.back() DENGAN INI:
-          // Ini menggunakan Navigator Flutter asli yang lebih kuat
-          Navigator.of(Get.context!).pop(updatedUser);
-        });
+          // 7. Jeda sebentar
+          await Future.delayed(Duration(milliseconds: 500));
+          
+          // --- PENGGANTIAN KE NAVIGATOR POP ---
+          // Kita gunakan context global dari GetX
+          if (Get.context != null) {
+            Navigator.of(Get.context!).pop(updatedUser);
+          }
+          // ------------------------------------
         }
       );
 
     } catch (e) {
-      print("DEBUG ERROR: $e");
       isLoading.value = false;
       Get.snackbar("Error", "Gagal update profil: $e");
     }

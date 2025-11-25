@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -15,178 +14,146 @@ import 'package:instagram/injection_container.dart';
 import 'package:instagram/presentation/pages/login_page.dart';
 
 class ProfileController extends GetxController {
-  final GetUserDataUseCase getUserDataUseCase;
-  StreamSubscription? _userPostsSubscription;
-  final GetUserPostsUseCase getUserPostsUseCase;
-  final LogOutUseCase logOutUseCase;
-  final FirebaseAuth firebaseAuth;
-  final ToggleFollowUseCase toggleFollowUseCase;
+  // Dependensi
+  final GetUserDataUseCase getUserDataUseCase = locator<GetUserDataUseCase>();
+  final GetUserPostsUseCase getUserPostsUseCase = locator<GetUserPostsUseCase>();
+  final LogOutUseCase logOutUseCase = locator<LogOutUseCase>();
+  final FirebaseAuth firebaseAuth = locator<FirebaseAuth>();
+  final ToggleFollowUseCase toggleFollowUseCase = locator<ToggleFollowUseCase>();
 
-  // ✅ PERBAIKAN: Hanya satu variabel untuk userId
   final String profileUserId;
-  late StreamSubscription profileUpdateSubscription;
+  
+  // Subscription
+  StreamSubscription? _profileUpdateSubscription;
+  StreamSubscription? _userPostsSubscription;
 
-  ProfileController({required this.profileUserId})
-    : getUserDataUseCase = locator<GetUserDataUseCase>(),
-      getUserPostsUseCase = locator<GetUserPostsUseCase>(),
-      logOutUseCase = locator<LogOutUseCase>(),
-      firebaseAuth = locator<FirebaseAuth>(),
-      toggleFollowUseCase = locator<ToggleFollowUseCase>();
+  ProfileController({required this.profileUserId});
 
-  // State untuk UI
+  // State
   var isLoading = true.obs;
   final Rx<UserEntity?> user = Rx(null);
   var posts = <Post>[].obs;
   final RxString profilePicUrl = "".obs;
 
-  // Getter
   bool get isMyProfile => profileUserId == firebaseAuth.currentUser?.uid;
-  bool get isFollowing =>
-      user.value?.followers.contains(firebaseAuth.currentUser?.uid) ?? false;
+  bool get isFollowing => user.value?.followers.contains(firebaseAuth.currentUser?.uid) ?? false;
 
   @override
   void onInit() {
     super.onInit();
-    profileUpdateSubscription = EventBus.profileStream.listen((event) {
-      // Jika ada event, panggil 'fetchProfileData' lagi
+    
+    // Listener Update Profil (Edit Profil)
+    _profileUpdateSubscription = EventBus.profileStream.listen((event) {
       fetchProfileData();
     });
 
     fetchProfileData();
   }
 
-  void updateProfilePic(String newUrl) {
-    profilePicUrl.value = newUrl;
-    if (user.value != null) {
-      user.value = user.value!.copyWith(profileImageUrl: newUrl);
-    }
-  }
-
   void fetchProfileData() async {
-    isLoading.value = true;
+    print("PROFIL: Memulai fetchProfileData untuk ID: $profileUserId"); // <-- LOG 1
+    
+    if (user.value == null) isLoading.value = true;
 
     final currentAuthUser = firebaseAuth.currentUser;
     if (currentAuthUser == null) {
+      print("PROFIL: Gagal, user belum login."); // <-- LOG 2
       isLoading.value = false;
       Get.offAll(() => LoginPage());
       return;
     }
 
-    // ✅ 1. Ambil data user YANG BENAR (profileUserId, bukan currentUser.uid)
-    final userDataResult = await getUserDataUseCase(
-      GetUserDataParams(profileUserId),
-    );
+    // 1. Ambil Data User
+    print("PROFIL: Mengambil data user..."); // <-- LOG 3
+    final userDataResult = await getUserDataUseCase(GetUserDataParams(profileUserId));
 
     userDataResult.fold(
       (failure) {
+        print("PROFIL: Gagal ambil user -> ${failure.message}"); // <-- LOG ERROR
         Get.snackbar("Error Profil", failure.message);
       },
       (userEntity) {
+        print("PROFIL: Sukses ambil user: ${userEntity.username}"); // <-- LOG SUKSES
         user.value = userEntity;
         profilePicUrl.value = userEntity.profileImageUrl ?? "";
+        
+        // 2. Ambil Postingan
+        print("PROFIL: Mengambil postingan..."); // <-- LOG 4
+        _userPostsSubscription?.cancel();
+        
+        _userPostsSubscription = getUserPostsUseCase
+            .execute(GetUserPostsParams(profileUserId))
+            .listen((postsResult) {
+              postsResult.fold(
+                (failure) => print("PROFIL: Gagal stream post: ${failure.message}"),
+                (postList) {
+                  print("PROFIL: Dapat ${postList.length} postingan."); // <-- LOG POST
+                  posts.value = postList;
+                },
+              );
+            });
       },
     );
 
-    await _userPostsSubscription?.cancel();
-
-    // Simpan stream baru ke variabel
-    _userPostsSubscription = getUserPostsUseCase
-        .execute(GetUserPostsParams(profileUserId))
-        .listen((postsResult) {
-          postsResult.fold(
-            (failure) {
-              /* ... */
-            },
-            (postList) {
-              posts.value = postList;
-            },
-          );
-        });
-
-    // ✅ 2. Ambil postingan YANG BENAR (profileUserId, bukan currentUser.uid)
-    getUserPostsUseCase.execute(GetUserPostsParams(profileUserId)).listen((
-      postsResult,
-    ) {
-      postsResult.fold(
-        (failure) {
-          // Biarkan grid kosong jika error
-        },
-        (postList) {
-          posts.value = postList;
-        },
-      );
-    });
-
     isLoading.value = false;
   }
+// ...
 
-  // ✅ PERBAIKAN: toggleFollow yang diperbaiki
   void toggleFollow() async {
     final currentUserId = firebaseAuth.currentUser?.uid;
+    if (currentUserId == null || isMyProfile) return;
 
-    if (currentUserId == null || isMyProfile) {
-      Get.snackbar("Error", "Tidak bisa follow diri sendiri.");
-      return;
+    // 1. OPTIMISTIC UPDATE (Agar tidak stuck/loading)
+    final currentUserData = user.value!;
+    final isFollowed = isFollowing;
+    List<String> newFollowers = List.from(currentUserData.followers);
+    
+    if (isFollowed) {
+      newFollowers.remove(currentUserId);
+    } else {
+      newFollowers.add(currentUserId);
     }
 
-    // ✅ Gunakan profileUserId langsung (bukan _profileUserId yang null)
-    final result = await toggleFollowUseCase(
-      ToggleFollowParams(
-        targetUserId: profileUserId, // ← PERBAIKAN DI SINI
-        currentUserId: currentUserId,
-      ),
+    // Update UI Seketika
+    user.value = currentUserData.copyWith(followers: newFollowers);
+
+    // 2. PANGGIL API
+   final result = await toggleFollowUseCase(
+      // Panggil tanpa nama (karena sekarang positional)
+      ToggleFollowParams(profileUserId, currentUserId), 
     );
 
-    result.fold((failure) => Get.snackbar("Error", failure.message), (
-      success,
-    ) async {
-      // Refresh data user agar tombol update
-      final userDataResult = await getUserDataUseCase(
-        GetUserDataParams(profileUserId),
-      );
-      userDataResult.fold((f) => null, (userEntity) {
-        user.value = userEntity;
-      });
-    });
+    result.fold(
+      (failure) {
+         // Gagal? Kembalikan UI (Rollback)
+         fetchProfileData(); 
+         Get.snackbar("Error", failure.message);
+      }, 
+      (success) {
+        // Sukses? 
+        // Beri tahu NotificationController agar tombol di ActivityPage juga berubah
+        EventBus.fireProfileUpdate(ProfileUpdateEvent());
+        
+        // Fetch ulang data untuk memastikan sinkron (opsional tapi aman)
+        // fetchProfileData(); 
+      }
+    );
   }
 
   void logOut() {
-    // 1. Tampilkan Dialog Konfirmasi DULU
     Get.dialog(
       AlertDialog(
         title: Text("Log Out"),
-        content: Text("Apakah Anda yakin ingin keluar dari akun ini?"),
+        content: Text("Apakah Anda yakin ingin keluar?"),
         actions: [
-          // Tombol BATAL
-          TextButton(
-            onPressed: () {
-              Get.back(); // Hanya tutup dialog, jangan lakukan apa-apa
-            },
-            child: Text("Batal", style: TextStyle(color: Colors.grey)),
-          ),
-
-          // Tombol YA, KELUAR
+          TextButton(onPressed: () => Get.back(), child: Text("Batal", style: TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () async {
-              Get.back(); // Tutup dialog dulu
-
-              // 2. Baru jalankan logika Logout di sini
-              final result = await logOutUseCase(NoParams());
-
-              result.fold(
-                (failure) {
-                  Get.snackbar("Error", failure.message);
-                },
-                (success) {
-                  // 3. Bersihkan state aplikasi
-                  EventBus.fireLogout(LogoutEvent());
-
-                  // 4. Pindah ke halaman Login
-                  Get.offAll(() => LoginPage());
-
-                  Get.snackbar("Sukses", "Berhasil Log out!");
-                },
-              );
+              Get.back(); 
+              await logOutUseCase(NoParams());
+              EventBus.fireLogout(LogoutEvent());
+              Get.offAll(() => LoginPage());
+              Get.snackbar("Sukses", "Berhasil Log out!");
             },
             child: Text("Log Out", style: TextStyle(color: Colors.red)),
           ),
@@ -197,10 +164,8 @@ class ProfileController extends GetxController {
 
   @override
   void onClose() {
-    // --- TAMBAHKAN INI ---
-    profileUpdateSubscription.cancel(); // Hentikan langganan
+    _profileUpdateSubscription?.cancel();
     _userPostsSubscription?.cancel();
-    // ---
     super.onClose();
   }
 }

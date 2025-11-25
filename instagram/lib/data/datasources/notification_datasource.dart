@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:instagram/core/errors/exception.dart';
 import 'package:instagram/data/models/notification_model.dart';
 
 abstract class NotificationRemoteDataSource {

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart'; // Hanya untuk Obx dan Get.snackbar
+import 'package:instagram/injection_container.dart';
 import 'package:instagram/presentation/controllers/authcontroller.dart';
 
 class SignUpPage extends StatelessWidget {
@@ -13,7 +14,7 @@ class SignUpPage extends StatelessWidget {
 
   // INI DIA CARANYA: Ambil controller dari GetIt, BUKAN Get.find()
   final AuthController controller = Get.put(
-    AuthController(),
+    AuthController(firebaseAuth: locator()),
     // tag opsional tapi bagus
   );
 

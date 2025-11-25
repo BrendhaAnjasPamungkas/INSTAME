@@ -32,7 +32,9 @@ import 'package:instagram/domain/usecase/get_user_data_usecase.dart';
 import 'package:instagram/domain/usecase/get_user_post_usecase.dart';
 import 'package:instagram/domain/usecase/logout_usecase.dart';
 import 'package:instagram/domain/usecase/search_usecase.dart';
+import 'package:instagram/domain/usecase/send_email_verification_usecase.dart';
 import 'package:instagram/domain/usecase/send_message_usecase.dart';
+import 'package:instagram/domain/usecase/send_password_usecase.dart';
 import 'package:instagram/domain/usecase/signin_usecase.dart';
 import 'package:instagram/domain/usecase/toggle_follow_usecase.dart';
 import 'package:instagram/domain/usecase/toggle_like_comment_usecase.dart';
@@ -138,4 +140,6 @@ void init() {
   locator.registerLazySingleton(() => DeleteMessageUseCase(locator()));
   locator.registerLazySingleton(() => GetNotificationsUseCase(locator()));
   locator.registerLazySingleton(() => GetPostByIdUseCase(locator()));
+  locator.registerLazySingleton(() => SendPasswordResetUseCase(locator()));
+  locator.registerLazySingleton(() => SendEmailVerificationUseCase(locator()));
 }

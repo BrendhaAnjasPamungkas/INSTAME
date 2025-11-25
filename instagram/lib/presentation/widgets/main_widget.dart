@@ -319,7 +319,7 @@ class MainWidget {
     BorderRadiusGeometry? borderRadius,
     Color? borderColor,
     double? borderWidth,
-    bool? enabled,
+    bool? enabled, 
   }) {
     enabled ??= true;
     borderRadius ??= BorderRadius.circular(16);

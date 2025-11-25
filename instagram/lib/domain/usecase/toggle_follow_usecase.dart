@@ -7,7 +7,8 @@ class ToggleFollowParams {
   final String targetUserId;
   final String currentUserId;
 
-  ToggleFollowParams({required this.targetUserId, required this.currentUserId});
+  // Constructor Sederhana (Positional)
+  ToggleFollowParams(this.targetUserId, this.currentUserId);
 }
 
 class ToggleFollowUseCase implements UseCase<void, ToggleFollowParams> {
@@ -15,8 +16,9 @@ class ToggleFollowUseCase implements UseCase<void, ToggleFollowParams> {
 
   ToggleFollowUseCase(this.repository);
 
-  @override
+@override
   Future<Either<Failure, void>> call(ToggleFollowParams params) async {
+    // Panggil repository dengan parameter yang benar
     return await repository.toggleFollowUser(params.targetUserId, params.currentUserId);
   }
 }

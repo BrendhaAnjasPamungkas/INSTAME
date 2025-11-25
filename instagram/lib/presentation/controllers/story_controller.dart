@@ -24,103 +24,81 @@ class StoryController extends GetxController {
 
   StreamSubscription? _storiesSubscription;
   StreamSubscription? _refreshSubscription;
+  // ignore: unused_field
+  StreamSubscription? _profileUpdateSubscription;
 
   @override
   void onInit() {
     super.onInit();
+    
+    firebaseAuth.authStateChanges().listen((user) {
+      if (user != null) fetchStories();
+    });
+
     _refreshSubscription = EventBus.feedStream.listen((event) {
-      print("STORY: Menerima sinyal refresh...");
       fetchStories();
     });
-    _logoutSubscription = EventBus.logoutStream.listen((event) {
-      print("STORY: Logout terdeteksi. Membersihkan status viewed...");
 
-      // Hapus semua ID yang sudah dilihat
-      viewedStoryIds.clear();
-      firebaseAuth.authStateChanges().listen((user) {
-      if (user != null) {
-        print("STORY: User siap. Mengambil story...");
-        fetchStories();
-      }
+    // --- REAKTIVITAS UPDATE PROFIL ---
+    // Saat Edit Profil selesai, ambil ulang data user agar foto baru terambil
+    _profileUpdateSubscription = EventBus.profileStream.listen((event) {
+      print("STORY: Profil berubah. Mengambil data user baru...");
+      fetchStories(); 
     });
+    // ---------------------------------
 
-      // Opsional: Bersihkan story yang ada agar saat login lagi bersih
+    _logoutSubscription = EventBus.logoutStream.listen((event) {
       stories.clear();
       myStory.value = null;
-    });
-    // --
-    firebaseAuth.authStateChanges().listen((user) {
-      if (user != null) {
-        print("AUTH: User terdeteksi, mengambil story...");
-        fetchStories();
-      }
+      viewedStoryIds.clear();
+      currentUserProfilePic.value = "";
     });
   }
 
-  void fetchStories() async {
-    isLoading.value = true;
-
+void fetchStories() async {
     final currentUserId = firebaseAuth.currentUser?.uid;
-    if (currentUserId == null) {
-      isLoading.value = false;
-      return;
-    }
+    if (currentUserId == null) return; 
 
-    // --- PERBAIKAN: Bungkus dengan Try-Catch ---
     try {
       await _loadViewedStatusFromLocal(currentUserId);
     } catch (e) {
-      print("Error loading SharedPrefs: $e");
-      // Lanjut saja meskipun gagal load cache
+      // Abaikan error prefs
     }
-    // ------------------------------------------
-    final userDataResult = await getUserDataUseCase(
-      GetUserDataParams(currentUserId),
-    );
 
+    // 1. Ambil Data User (Termasuk Foto Profil Terbaru)
+    final userDataResult = await getUserDataUseCase(GetUserDataParams(currentUserId));
+    
     userDataResult.fold(
-      (failure) {
-        isLoading.value = false;
-        // print("Gagal ambil user data: ${failure.message}");
-      },
+      (failure) {},
       (user) {
-        final List<String> allIdsToCheck = List.from(user.following);
-        allIdsToCheck.add(user.uid);
+        // --- UPDATE STATE FOTO PROFIL ---
+        // Ini yang bikin Feed & Story Button berubah otomatis!
         currentUserProfilePic.value = user.profileImageUrl ?? "";
-        _storiesSubscription?.cancel();
-        // Pastikan Stream ini jalan
-        _storiesSubscription = getStoriesUseCase
-            .execute(GetStoriesParams(followingIds: allIdsToCheck))
-            .listen(
-              (eitherResult) {
-                // --- PERBAIKAN: Pindahkan isLoading = false ke sini ---
-                // Agar saat data masuk, loading langsung hilang
-                isLoading.value = false;
+        // --------------------------------
+        
+        final List<String> allIdsToCheck = List.from(user.following);
+        allIdsToCheck.add(user.uid); 
 
-                eitherResult.fold(
-                  (failure) {
-                    print("Gagal ambil stories: ${failure.message}");
-                  },
-                  (allStories) {
-                    final myStoryIndex = allStories.indexWhere(
-                      (s) => s.id == currentUserId,
-                    );
-                    if (myStoryIndex != -1) {
-                      myStory.value = allStories[myStoryIndex];
-                      allStories.removeAt(myStoryIndex);
-                    } else {
-                      myStory.value = null;
-                    }
-                    stories.value = allStories;
-                  },
-                );
-              },
-              onError: (e) {
-                isLoading.value = false;
-                print("Stream Error: $e");
+        _storiesSubscription?.cancel();
+
+        _storiesSubscription = getStoriesUseCase.execute(GetStoriesParams(followingIds: allIdsToCheck))
+          .listen((eitherResult) {
+            isLoading.value = false; 
+            eitherResult.fold(
+              (failure) {},
+              (allStories) {
+                final myStoryIndex = allStories.indexWhere((s) => s.id == currentUserId);
+                if (myStoryIndex != -1) {
+                  myStory.value = allStories[myStoryIndex];
+                  allStories.removeAt(myStoryIndex);
+                } else {
+                  myStory.value = null;
+                }
+                stories.value = allStories;
               },
             );
-      },
+          }, onError: (e) => isLoading.value = false);
+      }
     );
   }
 

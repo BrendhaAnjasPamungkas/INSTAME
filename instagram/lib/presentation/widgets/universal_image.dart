@@ -59,11 +59,20 @@ class UniversalImage extends StatelessWidget {
   }
 
   Widget _buildError() {
-    return Container(
+    Widget errorWidget = Container(
       width: width,
       height: height,
       color: Colors.grey[800],
       child: Icon(Icons.person, color: Colors.white54),
     );
+
+    // --- INI PERBAIKANNYA ---
+    // Jika diminta bulat (isCircle == true), placeholder juga harus dipotong bulat
+    if (isCircle) {
+      return ClipOval(child: errorWidget);
+    }
+    // ------------------------
+
+    return errorWidget;
   }
 }

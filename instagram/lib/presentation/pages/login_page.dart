@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:instagram/injection_container.dart';
 import 'package:instagram/presentation/controllers/authcontroller.dart';
+import 'package:instagram/presentation/pages/forget_password_page.dart';
 import 'package:instagram/presentation/pages/signup_page.dart';
+import 'package:instagram/presentation/widgets/main_widget.dart';
 // Import halaman sign up
 
 class LoginPage extends StatelessWidget {
@@ -11,7 +14,7 @@ class LoginPage extends StatelessWidget {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  final AuthController controller = Get.put(AuthController());
+  final AuthController controller = Get.put(AuthController(firebaseAuth: locator()));
 
   @override
   Widget build(BuildContext context) {
@@ -80,12 +83,26 @@ class LoginPage extends StatelessWidget {
                           child: Text("Log In"),
                         );
                 }),
-                SizedBox(height: 24),
+
+                W.gap(height: 24),
 
                 // 5. Link ke Halaman Sign Up
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    Column(
+                      children: [
+                        GestureDetector(
+                          onTap: () => Get.to(() => ForgotPasswordPage()),
+                          child: W.text(
+                            data: "Lupa password?",
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Spacer(),
                     Text("Don't have an account? "),
                     GestureDetector(
                       onTap: () {

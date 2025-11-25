@@ -9,7 +9,7 @@ import 'package:instagram/presentation/pages/story_view_page.dart';
 import 'package:instagram/presentation/widgets/main_widget.dart';
 import 'package:instagram/presentation/widgets/post_card.dart';
 import 'package:instagram/presentation/widgets/story_ring_widget.dart';
-import 'package:instagram/presentation/widgets/universal_image.dart'; // Import UniversalImage
+import 'package:instagram/presentation/widgets/universal_image.dart';
 
 class FeedPage extends StatelessWidget {
   FeedPage({super.key});
@@ -63,49 +63,86 @@ class FeedPage extends StatelessWidget {
           await Future.delayed(Duration(seconds: 1));
         },
         child: Obx(() {
-          // 1. Loading State
+          // 1. Loading State (Hanya muncul sebentar di awal)
           if (controller.isLoading.value) {
             return Center(child: CircularProgressIndicator());
           }
 
-          // 2. Data Postingan
           final posts = controller.posts;
 
+          // --- PERBAIKAN TAMPILAN KOSONG ---
+          // Gunakan ListView bahkan saat kosong, agar RefreshIndicator tetap jalan
           return ListView.builder(
             physics: AlwaysScrollableScrollPhysics(),
-            // Jumlah item = Jumlah Post + 1 (untuk area Story di paling atas)
-            itemCount: posts.length + 1,
+            // Jika posts kosong, item count = 2 (Header Story + Pesan Kosong)
+            // Jika ada posts, item count = 1 (Header) + jumlah post
+            itemCount: posts.isEmpty ? 2 : posts.length + 1,
+
             itemBuilder: (context, index) {
-              // --- A. ITEM PERTAMA (INDEX 0) ADALAH STORY SECTION ---
+              // --- A. HEADER: STORY SECTION (Index 0) ---
               if (index == 0) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildStorySection(),
                     Divider(height: 1, color: Colors.grey[800]),
-                    // Jika tidak ada postingan, tampilkan pesan di bawah story
-                    if (posts.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.all(50.0),
-                        child: Center(
-                          child: W.text(
-                            data: "Ikuti seseorang untuk melihat postingan.",
-                          ),
-                        ),
-                      ),
                   ],
                 );
               }
 
-              // --- B. ITEM SELANJUTNYA ADALAH POSTINGAN ---
-              final post = posts[index - 1];
-              return PostCard(post: post);
+              // --- B. JIKA POST KOSONG (Index 1) ---
+              if (posts.isEmpty && index == 1) {
+                return Container(
+                  height: 400, // Tinggi agar terlihat di tengah
+                  alignment: Alignment.center,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.camera_alt_outlined,
+                        size: 60,
+                        color: Colors.grey,
+                      ),
+                      W.gap(height: 16),
+                      W.text(
+                        data: "Selamat Datang di Instagram!",
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
+                      W.gap(height: 8),
+                      W.text(
+                        data:
+                            "Ikuti orang lain atau buat postingan\npertama Anda untuk melihatnya di sini.",
+                        textAlign: TextAlign.center,
+                        color: Colors.grey[400],
+                      ),
+                    ],
+                  ),
+                );
+              }
+
+              // --- C. LIST POSTINGAN ---
+              // Index data = index UI - 1 (karena index 0 dipakai Header)
+              final postIndex = index - 1;
+              if (postIndex < posts.length) {
+                return PostCard(
+                  post: posts[postIndex],
+                  controller: controller,
+                  storyController: storyController,
+                );
+              } else {
+                return SizedBox.shrink(); // Safety
+              }
             },
           );
         }),
       ),
     );
   }
+
+  // ... (Fungsi _buildStorySection dan _buildYourStoryButton TETAP SAMA seperti kode Anda sebelumnya)
+  // Pastikan Anda menyalin kembali fungsi _buildStorySection dan _buildYourStoryButton
+  // dari kode Anda sebelumnya ke sini agar tidak hilang.
 
   Widget _buildStorySection() {
     return Container(
@@ -164,34 +201,37 @@ class FeedPage extends StatelessWidget {
     return Obx(() {
       final myStory = storyController.myStory.value;
 
-      // KONDISI 1: SUDAH ADA STORY (Cincin)
       if (myStory != null) {
         final String uniqueId =
             "${myStory.id}_${myStory.lastStoryAt.millisecondsSinceEpoch}";
         final bool isViewed = storyController.viewedStoryIds.contains(uniqueId);
 
-        return StoryRingWidget(
-          username: "Cerita Anda",
-          profileImageUrl: myStory.profileImageUrl,
-          hasUnviewedStories: !isViewed,
-          onTap: () {
-            storyController.markAsViewed(uniqueId);
-            Get.to(
-              () => StoryViewPage(
-                userId: myStory.id,
-                username: "Cerita Anda",
-                userProfileUrl: myStory.profileImageUrl,
-              ),
-            );
-          },
+        // Ambil Foto Live
+        final String liveProfilePic =
+            storyController.currentUserProfilePic.value;
+
+        return Column(
+          children: [
+            StoryRingWidget(
+              username: "Cerita Anda",
+              profileImageUrl: liveProfilePic, // Pakai live
+              hasUnviewedStories: !isViewed,
+              onTap: () {
+                storyController.markAsViewed(uniqueId);
+                Get.to(
+                  () => StoryViewPage(
+                    userId: myStory.id,
+                    username: "Cerita Anda",
+                    userProfileUrl: liveProfilePic, // Pakai live
+                  ),
+                );
+              },
+            ),
+          ],
         );
-      } 
-      
-      // KONDISI 2: BELUM ADA STORY (Tombol +)
-      else {
-        // Ambil foto profil dari controller
+      } else {
         final String myPicUrl = storyController.currentUserProfilePic.value;
-        
+
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6.0),
           child: Column(
@@ -210,17 +250,16 @@ class FeedPage extends StatelessWidget {
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(2.0),
-                        // --- PERBAIKAN UTAMA DI SINI ---
-                        // Gunakan UniversalImage agar aman (https, error handling, dll)
                         child: UniversalImage(
                           imageUrl: myPicUrl,
-                          width: 68, 
+                          width: 68,
                           height: 68,
-                          isCircle: true, // Agar dipotong bulat
+                          isCircle: true, // <-- INI KUNCINYA AGAR BULAT
                         ),
-                        // -------------------------------
                       ),
                     ),
+
+                    // Ikon Tambah (+)
                     Container(
                       width: 24,
                       height: 24,

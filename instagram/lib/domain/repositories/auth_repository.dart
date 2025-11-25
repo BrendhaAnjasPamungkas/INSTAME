@@ -15,4 +15,6 @@ abstract class AuthRepository {
   Future<Either<Failure, void>> toggleFollowUser(String targetUserId, String currentUserId);
   Future<Either<Failure, List<UserEntity>>> searchUsers(String query);
   Future<Either<Failure, void>> updateUserData(String uid, String newUsername, String newBio, String? newProfileImageUrl);
+  Future<Either<Failure, void>> sendPasswordResetEmail(String email);
+  Future<Either<Failure, void>> sendEmailVerification();
 }

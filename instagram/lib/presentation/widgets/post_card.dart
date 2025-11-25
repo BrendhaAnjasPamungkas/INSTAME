@@ -3,19 +3,30 @@ import 'package:get/get.dart';
 import 'package:instagram/domain/entities/post.dart';
 import 'package:instagram/presentation/controllers/feed_controller.dart';
 import 'package:instagram/presentation/controllers/feed_video_player.dart';
+import 'package:instagram/presentation/controllers/story_controller.dart';
 import 'package:instagram/presentation/pages/comments_page.dart';
 import 'package:instagram/presentation/pages/profile_page.dart';
 import 'package:instagram/presentation/widgets/main_widget.dart';
-import 'package:instagram/presentation/widgets/universal_image.dart'; // <-- Gunakan ini
+import 'package:instagram/presentation/widgets/universal_image.dart';
 
 class PostCard extends StatelessWidget {
   final Post post;
+  // --- UBAH DI SINI: Terima Controller dari Constructor ---
+  final FeedController controller; 
+  final StoryController? storyController; 
 
-  const PostCard({Key? key, required this.post}) : super(key: key);
+  const PostCard({
+    Key? key, 
+    required this.post, 
+    required this.controller, 
+    this.storyController,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    final FeedController controller = Get.find<FeedController>(tag: "feedController");
+    // Get.find SUDAH DIHAPUS DARI SINI
+
+    final bool isMyPost = post.authorId == controller.currentUserId;
 
     return Card(
       margin: EdgeInsets.symmetric(vertical: 8),
@@ -24,7 +35,7 @@ class PostCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // --- HEADER POSTINGAN ---
+          // HEADER
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
@@ -34,14 +45,7 @@ class PostCard extends StatelessWidget {
                   child: Container(
                     width: 36, height: 36,
                     decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.grey[800]),
-                    
-                    // 1. PENGGUNAAN UniversalImage UNTUK AVATAR
-                    child: UniversalImage(
-                      imageUrl: post.authorProfileUrl,
-                      width: 36, height: 36,
-                      isCircle: true,
-                    ),
-                    // -----------------------------------------
+                    child: _buildSmartAvatar(isMyPost, storyController),
                   ),
                 ),
                 W.gap(width: 8),
@@ -64,40 +68,37 @@ class PostCard extends StatelessWidget {
             ),
           ),
 
-          // --- KONTEN UTAMA ---
+          // KONTEN
           if (post.type == PostType.video)
             SizedBox(
               width: Get.width,
-              height: Get.width, // Rasio 1:1
+              height: Get.width,
               child: FeedVideoPlayer(url: post.imageUrl),
             )
           else
-            // 2. PENGGUNAAN UniversalImage UNTUK FOTO POSTINGAN
-            // Ini menggantikan kode CachedNetworkImage yang panjang dan ribet
             UniversalImage(
               imageUrl: post.imageUrl,
               width: Get.width,
-              height: Get.width, // Rasio 1:1
+              height: Get.width,
               fit: BoxFit.cover,
             ),
-            // --------------------------------------------------
 
-          // --- TOMBOL AKSI ---
+          // TOMBOL AKSI
           Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
               children: [
-                IconButton(
-                  icon: Icon(
-                    post.likes.contains(controller.currentUserId)
-                        ? Icons.favorite
-                        : Icons.favorite_border,
-                  ),
-                  color: post.likes.contains(controller.currentUserId)
-                      ? Colors.red
-                      : Colors.white,
-                  onPressed: () => controller.toggleLike(post.id),
-                ),
+                Obx(() {
+                   final currentPost = controller.posts.firstWhere(
+                      (p) => p.id == post.id, orElse: () => post);
+                   final isLiked = currentPost.likes.contains(controller.currentUserId);
+
+                   return IconButton(
+                    icon: Icon(isLiked ? Icons.favorite : Icons.favorite_border),
+                    color: isLiked ? Colors.red : Colors.white,
+                    onPressed: () => controller.toggleLike(post.id),
+                  );
+                }),
                 W.gap(width: 4),
                 IconButton(
                   icon: Icon(Icons.chat_bubble_outline),
@@ -118,17 +119,21 @@ class PostCard extends StatelessWidget {
             ),
           ),
 
-          // --- CAPTION ---
+          // CAPTION
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                W.text(
-                  data: "${post.likes.length} Suka",
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
+                Obx(() {
+                   final currentPost = controller.posts.firstWhere(
+                      (p) => p.id == post.id, orElse: () => post);
+                   return W.text(
+                    data: "${currentPost.likes.length} Suka",
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  );
+                }),
                 W.gap(height: 4),
                 W.richText(
                   defaultColor: Colors.white,
@@ -149,9 +154,28 @@ class PostCard extends StatelessWidget {
     );
   }
 
+  Widget _buildSmartAvatar(bool isMyPost, StoryController? storyController) {
+    if (isMyPost && storyController != null) {
+      return Obx(() {
+        return UniversalImage(
+          imageUrl: storyController.currentUserProfilePic.value,
+          width: 36, height: 36,
+          isCircle: true,
+        );
+      });
+    } 
+    else {
+      return UniversalImage(
+        imageUrl: post.authorProfileUrl,
+        width: 36, height: 36,
+        isCircle: true,
+      );
+    }
+  }
+
   void _showPostOptions(BuildContext context, String postId, String authorId, FeedController controller) {
     final bool isMyPost = authorId == controller.currentUserId;
-
+    // ... (Logika bottom sheet tetap sama)
     showModalBottomSheet(
       context: context,
       builder: (context) {
