@@ -43,12 +43,12 @@ class HomePage extends StatelessWidget {
           items: [
             BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
+              activeIcon: Icon(Icons.home_filled),
               label: 'Home',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.search_outlined),
-              activeIcon: Icon(Icons.search),
+              activeIcon: Icon(Icons.search_sharp),
               label: 'Search',
             ),
             BottomNavigationBarItem(

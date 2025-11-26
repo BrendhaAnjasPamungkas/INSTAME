@@ -16,6 +16,7 @@ abstract class ChatRemoteDataSource {
   Stream<List<ChatRoom>> getChatRooms(String currentUserId);
   Future<String> uploadChatMedia(Uint8List bytes, MessageType type);
   Future<void> deleteMessage(String messageId, String chatRoomId);
+  Future<void> markChatAsRead(String chatRoomId, String userId);
 }
 
 class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
@@ -31,12 +32,8 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
     return ids.join("_");
   }
 
-  @override
+ @override
   Stream<List<ChatRoom>> getChatRooms(String currentUserId) {
-    // CATATAN: Kueri ini membutuhkan Indeks Komposit di Firestore
-    // Collection: chats
-    // Field 1: participants (Arrays)
-    // Field 2: lastTimestamp (Descending)
     return firestore
         .collection('chats')
         .where('participants', arrayContains: currentUserId)
@@ -46,16 +43,19 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
           return snapshot.docs.map((doc) {
             final data = doc.data();
             final List<dynamic> participants = data['participants'];
-            final String otherId = participants.firstWhere(
-              (id) => id != currentUserId,
-              orElse: () => "", // Safety jika user sendiri
-            );
+            final String otherId = participants.firstWhere((id) => id != currentUserId, orElse: () => "");
+
+            // --- CEK APAKAH UNREAD ---
+            final List<dynamic> unreadBy = data['unreadBy'] ?? [];
+            final bool isUnread = unreadBy.contains(currentUserId);
+            // -------------------------
 
             return ChatRoom(
               id: data['id'],
               otherUserId: otherId,
               lastMessage: data['lastMessage'] ?? "",
               lastTimestamp: (data['lastTimestamp'] as Timestamp).toDate(),
+              isUnread: isUnread, // <-- Masukkan ke entity
             );
           }).toList();
         });
@@ -77,20 +77,27 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
       throw ServerException(e.toString());
     }
   }
-
   @override
+  Future<void> markChatAsRead(String chatRoomId, String userId) async {
+    try {
+      // Hapus ID kita dari daftar unreadBy
+      await firestore.collection('chats').doc(chatRoomId).update({
+        'unreadBy': FieldValue.arrayRemove([userId])
+      });
+    } catch (e) {
+      // Silent fail oke
+    }
+  }
+
+ @override
   Future<void> sendMessage(MessageModel message) async {
     try {
       final chatRoomId = _getChatRoomId(message.senderId, message.receiverId);
       
-      // 1. Simpan Pesan ke Sub-collection
-      await firestore
-          .collection('chats')
-          .doc(chatRoomId)
-          .collection('messages')
-          .add(message.toJson());
+      // 1. Simpan Pesan
+      await firestore.collection('chats').doc(chatRoomId).collection('messages').add(message.toJson());
           
-      // 2. Update Metadata Chat Room (Preview Pesan Terakhir)
+      // 2. Update Induk (Metadata)
       String previewMsg = message.text;
       if (message.type == MessageType.image) previewMsg = "📷 Foto";
       if (message.type == MessageType.video) previewMsg = "🎥 Video";
@@ -100,6 +107,10 @@ class ChatRemoteDataSourceImpl implements ChatRemoteDataSource {
         'lastMessage': previewMsg,
         'lastTimestamp': message.timestamp,
         'id': chatRoomId,
+        // --- TAMBAHKAN INI ---
+        // Masukkan ID Penerima ke daftar 'unreadBy' (agar di HP dia jadi bold)
+        'unreadBy': FieldValue.arrayUnion([message.receiverId]), 
+        // ---------------------
       }, SetOptions(merge: true));
 
     } catch (e) {

@@ -42,11 +42,21 @@ class ChatPage extends StatelessWidget {
                 CircleAvatar(
                   radius: 16,
                   backgroundColor: Colors.grey[800],
-                  backgroundImage: (user.profileImageUrl != null)
+                  // Cek apakah URL tidak null DAN tidak kosong
+                  backgroundImage:
+                      (user.profileImageUrl != null &&
+                          user.profileImageUrl!.isNotEmpty)
                       ? CachedNetworkImageProvider(user.profileImageUrl!)
                       : null,
-                  child: (user.profileImageUrl == null)
-                      ? Icon(Icons.person, size: 20)
+                  // Jika URL null atau kosong, tampilkan Icon
+                  child:
+                      (user.profileImageUrl == null ||
+                          user.profileImageUrl!.isEmpty)
+                      ? Icon(
+                          Icons.person,
+                          size: 20,
+                          color: Colors.grey[400],
+                        ) // Warna ikon terang
                       : null,
                 ),
                 W.gap(width: 10),

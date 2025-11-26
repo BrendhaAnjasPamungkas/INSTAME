@@ -37,6 +37,15 @@ class ChatRepositoryImpl implements ChatRepository {
       return Left(ServerFailure(e.toString()));
     }
   }
+  @override
+  Future<Either<Failure, void>> markChatAsRead(String chatRoomId, String userId) async {
+    try {
+      await remoteDataSource.markChatAsRead(chatRoomId, userId);
+      return Right(null);
+    } on ServerException catch (e) {
+      return Left(ServerFailure(e.message));
+    }
+  }
 
   @override
   Stream<Either<Failure, List<Message>>> getMessages(String otherUserId, String currentUserId) {

@@ -4,15 +4,19 @@ import 'package:instagram/domain/entities/chat_room.dart';
 import 'package:instagram/domain/entities/user.dart';
 import 'package:instagram/domain/usecase/get_chat_rooms_usecase.dart';
 import 'package:instagram/domain/usecase/get_user_data_usecase.dart';
+import 'package:instagram/domain/usecase/mark_chat_read_usecase.dart';
 import 'package:instagram/injection_container.dart';
+import 'package:instagram/presentation/pages/chat_page.dart';
 
 class InboxController extends GetxController {
   final GetChatRoomsUseCase getChatRoomsUseCase = locator<GetChatRoomsUseCase>();
   final GetUserDataUseCase getUserDataUseCase = locator<GetUserDataUseCase>();
   final FirebaseAuth firebaseAuth = locator<FirebaseAuth>();
+  final MarkChatReadUseCase markChatReadUseCase = locator<MarkChatReadUseCase>(); // Inject
 
   var isLoading = true.obs;
   var chatRooms = <ChatRoom>[].obs;
+  var hasUnreadMessages = false.obs;
   
   // Cache data user (RxMap agar reaktif)
   var userCache = <String, UserEntity>{}.obs; 
@@ -29,17 +33,19 @@ class InboxController extends GetxController {
 
     isLoading.value = true;
 
-    // Bind stream chat rooms
     chatRooms.bindStream(
       getChatRoomsUseCase.execute(GetChatRoomsParams(uid)).map((either) {
         return either.fold(
-          (failure) {
-            print("Error Inbox: ${failure.message}");
-            return [];
-          },
+          (failure) => [],
           (rooms) {
-            print("INBOX: Mendapatkan ${rooms.length} chat rooms");
-            // Setiap ada room baru, fetch data usernya
+            // --- LOGIKA BADGE ---
+            if (rooms.isNotEmpty) {
+               // Idealnya cek field 'unreadCount' di database
+               // Sementara kita nyalakan jika ada chat room
+               hasUnreadMessages.value = true;
+            }
+            // --------------------
+
             for (var room in rooms) {
               _fetchUserIfNotCached(room.otherUserId);
             }
@@ -49,6 +55,9 @@ class InboxController extends GetxController {
         );
       })
     );
+  }
+  void markAsRead() {
+    hasUnreadMessages.value = false;
   }
 
   void _fetchUserIfNotCached(String uid) async {
@@ -65,5 +74,14 @@ class InboxController extends GetxController {
         userCache[uid] = user; 
       }
     );
+  }
+  void openChat(String chatRoomId, String otherUserId) {
+    final uid = firebaseAuth.currentUser?.uid;
+    if (uid != null) {
+      // Tandai sudah dibaca di database
+      markChatReadUseCase(MarkChatReadParams(chatRoomId, uid));
+    }
+    // Buka Chat Page
+    Get.to(() => ChatPage(otherUserId: otherUserId));
   }
 }

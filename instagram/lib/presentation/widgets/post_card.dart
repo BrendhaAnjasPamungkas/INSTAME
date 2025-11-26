@@ -69,12 +69,11 @@ class PostCard extends StatelessWidget {
           ),
 
           // KONTEN
+          // --- KONTEN UTAMA ---
           if (post.type == PostType.video)
-            SizedBox(
-              width: Get.width,
-              height: Get.width,
-              child: FeedVideoPlayer(url: post.imageUrl),
-            )
+            // Hapus SizedBox/Container yang membatasi tinggi.
+            // Biarkan FeedVideoPlayer (yang sudah pakai AspectRatio) menentukan tingginya sendiri.
+            FeedVideoPlayer(url: post.imageUrl)
           else
             UniversalImage(
               imageUrl: post.imageUrl,

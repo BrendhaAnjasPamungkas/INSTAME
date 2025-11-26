@@ -1,4 +1,3 @@
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -21,7 +20,8 @@ class ProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String userIdToUse = userId ?? locator<FirebaseAuth>().currentUser!.uid;
+    final String userIdToUse =
+        userId ?? locator<FirebaseAuth>().currentUser!.uid;
     final String tag = userIdToUse;
 
     // 1. Inisialisasi ProfileController Utama
@@ -35,7 +35,7 @@ class ProfilePage extends StatelessWidget {
       FeedController(),
       tag: "feedController",
     );
-    
+
     final StoryController storyController = Get.put(
       StoryController(),
       tag: "storyController",
@@ -43,25 +43,27 @@ class ProfilePage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Obx(() => W.text(
-          data: controller.user.value?.username ?? "Profil",
-          fontWeight: FontWeight.bold,
-          fontSize: 20,
-        )),
+        title: Obx(
+          () => W.text(
+            data: controller.user.value?.username ?? "Profil",
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
         actions: [
           // Hapus Obx di sini karena isMyProfile bukan Rx
           if (controller.isMyProfile)
             IconButton(
               icon: Icon(Icons.logout),
               onPressed: () => controller.logOut(),
-            )
+            ),
         ],
       ),
       body: Obx(() {
         if (controller.isLoading.value) {
           return Center(child: CircularProgressIndicator());
         }
-        
+
         final user = controller.user.value;
         if (user == null) {
           return Center(child: W.text(data: "Gagal memuat profil."));
@@ -73,9 +75,7 @@ class ProfilePage extends StatelessWidget {
               SliverToBoxAdapter(
                 child: _buildProfileHeader(controller, storyController),
               ),
-              SliverToBoxAdapter(
-                child: _buildActionButtons(controller),
-              ),
+              SliverToBoxAdapter(child: _buildActionButtons(controller)),
             ];
           },
           // Kirim controller ke Grid
@@ -85,7 +85,10 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileHeader(ProfileController controller, StoryController storyController) {
+  Widget _buildProfileHeader(
+    ProfileController controller,
+    StoryController storyController,
+  ) {
     final user = controller.user.value!;
 
     return Padding(
@@ -151,9 +154,9 @@ class ProfilePage extends StatelessWidget {
         child: W.button(
           onPressed: () async {
             // Kirim data user saat ini ke halaman edit
-            final result = await Get.to(() => EditProfilePage(
-              currentUser: controller.user.value!,
-            ));
+            final result = await Get.to(
+              () => EditProfilePage(currentUser: controller.user.value!),
+            );
 
             // Update state manual jika ada kembalian data baru
             if (result != null && result is UserEntity) {
@@ -164,39 +167,46 @@ class ProfilePage extends StatelessWidget {
           child: W.text(data: "Edit Profil"),
         ),
       );
-    } 
-    
+    }
     // Tombol Follow/Message (Orang Lain)
     else {
-      return Obx(() => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-        child: Row(
-          children: [
-            Expanded(
-              child: W.button(
-                onPressed: () => controller.toggleFollow(),
-                child: W.text(data: controller.isFollowing ? "Unfollow" : "Follow"),
-                backgroundColor: controller.isFollowing ? Colors.grey[800] : Colors.blue,
+      return Obx(
+        () => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
+            children: [
+              Expanded(
+                child: W.button(
+                  onPressed: () => controller.toggleFollow(),
+                  child: W.text(
+                    data: controller.isFollowing ? "Unfollow" : "Follow",
+                  ),
+                  backgroundColor: controller.isFollowing
+                      ? Colors.grey[800]
+                      : Colors.blue,
+                ),
               ),
-            ),
-            W.gap(width: 8),
-            Expanded(
-              child: W.button(
-                onPressed: () => Get.to(() => ChatPage(otherUserId: controller.profileUserId)),
-                child: W.text(data: "Message"),
-                backgroundColor: Colors.grey[800],
+              W.gap(width: 8),
+              Expanded(
+                child: W.button(
+                  onPressed: () => Get.to(
+                    () => ChatPage(otherUserId: controller.profileUserId),
+                  ),
+                  child: W.text(data: "Message"),
+                  backgroundColor: Colors.grey[800],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ));
+      );
     }
   }
 
   Widget _buildProfileGrid(
     ProfileController controller,
     FeedController feedController,
-    StoryController storyController
+    StoryController storyController,
   ) {
     final List<Post> posts = controller.posts;
 
@@ -221,24 +231,43 @@ class ProfilePage extends StatelessWidget {
 
         return GestureDetector(
           onTap: () {
-            // Navigasi ke Detail dan kirim controller yang sudah ada
-            Get.to(() => PostDetailPage(
-              posts: controller.posts, 
-              initialIndex: index,     
-              feedController: feedController,
-              storyController: storyController, 
-            ));
+            Get.to(
+              () => PostDetailPage(
+                posts: controller.posts,
+                initialIndex: index,
+                feedController: feedController,
+                storyController: storyController,
+              ),
+            );
           },
           child: Stack(
             fit: StackFit.expand,
             children: [
+              // --- PERBAIKAN: GUNAKAN THUMBNAIL ---
               UniversalImage(
-                imageUrl: post.imageUrl,
+                // Jika tipe video, kita ambil versi .jpg nya dari Cloudinary
+                imageUrl: post.type == PostType.video
+                    ? _getThumbnailUrl(post.imageUrl)
+                    : post.imageUrl,
                 fit: BoxFit.cover,
               ),
+              // ------------------------------------
+
+              // Ikon Play tetap ada di atas thumbnail agar user tahu itu video
               if (post.type == PostType.video)
                 Center(
-                  child: Icon(Icons.play_arrow, color: Colors.white, size: 30),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      shape: BoxShape.circle,
+                    ),
+                    padding: EdgeInsets.all(8),
+                    child: Icon(
+                      Icons.play_arrow,
+                      color: Colors.white,
+                      size: 30,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -263,5 +292,14 @@ class ProfilePage extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  // Fungsi untuk mengubah URL Video menjadi URL Thumbnail Gambar
+  String _getThumbnailUrl(String url) {
+    if (url.endsWith('.mp4')) {
+      // Ganti akhiran .mp4 menjadi .jpg
+      return url.replaceAll('.mp4', '.jpg');
+    }
+    return url; // Jika bukan mp4, kembalikan aslinya
   }
 }

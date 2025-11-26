@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:instagram/presentation/controllers/upload_controller.dart';
+import 'package:instagram/presentation/widgets/main_widget.dart';
 import 'package:instagram/presentation/widgets/upload_preiew_widget.dart'; // Pastikan nama file import benar (tadi ada typo 'preiew')
 
 class UploadPage extends StatelessWidget {
@@ -8,7 +9,7 @@ class UploadPage extends StatelessWidget {
 
   final UploadController controller = Get.put(
     UploadController(),
-    tag: "uploadController", 
+    tag: "uploadController",
   );
 
   final _captionController = TextEditingController();
@@ -21,12 +22,12 @@ class UploadPage extends StatelessWidget {
 
       // 2. PopScope: Mencegah tombol Back HP berfungsi saat loading
       return PopScope(
-        canPop: !isLoading, 
+        canPop: !isLoading,
         child: Scaffold(
           appBar: AppBar(
-            title: Text("Buat Postingan Baru"),
+            title: W.text(data: "Buat Postingan", fontWeight: FontWeight.bold),
             // 3. Kontrol Tombol Back di AppBar secara manual
-            automaticallyImplyLeading: false, 
+            automaticallyImplyLeading: false,
             leading: IconButton(
               icon: Icon(Icons.arrow_back),
               // Jika loading, tombol ini mati (null). Jika tidak, bisa back.
@@ -39,9 +40,9 @@ class UploadPage extends StatelessWidget {
                       padding: const EdgeInsets.all(16.0),
                       child: Center(
                         child: SizedBox(
-                          width: 20, 
-                          height: 20, 
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(color: Colors.white),
                         ),
                       ),
                     )
@@ -53,7 +54,7 @@ class UploadPage extends StatelessWidget {
                     ),
             ],
           ),
-          
+
           // 4. AbsorbPointer: Memblokir semua sentuhan di body saat loading
           body: AbsorbPointer(
             absorbing: isLoading, // Jika true, layar beku (tidak bisa diklik)
@@ -94,7 +95,9 @@ class UploadPage extends StatelessWidget {
                             icon: Icon(
                               Icons.close,
                               color: Colors.white,
-                              shadows: [Shadow(color: Colors.black, blurRadius: 4)],
+                              shadows: [
+                                Shadow(color: Colors.black, blurRadius: 4),
+                              ],
                             ),
                             onPressed: () {
                               controller.selectedImage.value = null;
@@ -112,7 +115,8 @@ class UploadPage extends StatelessWidget {
                     controller: _captionController,
                     decoration: InputDecoration(
                       hintText: "Tulis caption...",
-                      border: InputBorder.none,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(),
                     ),
                     maxLines: 5,
                   ),

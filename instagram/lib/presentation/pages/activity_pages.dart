@@ -130,10 +130,28 @@ class ActivityPage extends StatelessWidget {
 
     // --- 2. GANTI PREVIEW POSTINGAN DENGAN UNIVERSAL IMAGE ---
     if (notif.postImageUrl != null) {
-      return SizedBox(
-        width: 40,
-        height: 40,
-        child: UniversalImage(imageUrl: notif.postImageUrl, fit: BoxFit.cover),
+      return Container(
+        width: 40, height: 40,
+        decoration: BoxDecoration(
+           border: Border.all(color: Colors.grey[800]!),
+           borderRadius: BorderRadius.circular(4),
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // 1. Tampilkan Thumbnail (Bukan Video Asli)
+            UniversalImage(
+              imageUrl: _getThumbnailUrl(notif.postImageUrl!), // Gunakan helper
+              fit: BoxFit.cover,
+            ),
+            
+            // 2. Ikon Play Kecil (Jika aslinya video)
+            if (notif.postImageUrl!.endsWith('.mp4'))
+              Center(
+                child: Icon(Icons.play_arrow, size: 20, color: Colors.white),
+              ),
+          ],
+        ),
       );
     }
     // ---------------------------------------------------------
@@ -157,5 +175,11 @@ class ActivityPage extends StatelessWidget {
       case NotificationType.follow:
         return "mulai mengikuti anda.";
     }
+  }
+  String _getThumbnailUrl(String url) {
+    if (url.endsWith('.mp4')) {
+      return url.replaceAll('.mp4', '.jpg');
+    }
+    return url;
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart'; // Hanya untuk Obx dan Get.snackbar
 import 'package:instagram/injection_container.dart';
 import 'package:instagram/presentation/controllers/authcontroller.dart';
+import 'package:instagram/presentation/widgets/main_widget.dart';
 
 class SignUpPage extends StatelessWidget {
   SignUpPage({super.key});
@@ -23,52 +24,79 @@ class SignUpPage extends StatelessWidget {
     return Scaffold(
       body: Center(
         child: Padding(
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text("Instagram Clone", style: TextStyle(fontSize: 24)),
-              SizedBox(height: 20),
+              Image.asset(
+                "assets/logoinsta.png",
+                color: Colors.white,
+                height: 100,
+                width: 200,
+                fit: BoxFit.contain,
+              ),
+              W.gap(height: 18),
               TextField(
                 controller: _usernameController,
-                decoration: InputDecoration(labelText: "Username"),
+                decoration: InputDecoration(
+                  labelText: "Username",
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.grey[800],
+                ),
               ),
-              SizedBox(height: 10),
+              W.gap(height: 10),
               TextField(
                 controller: _fullNameController,
-                decoration: InputDecoration(labelText: "Nama Lengkap"),
+                decoration: InputDecoration(
+                  labelText: "Nama Lengkap",
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.grey[800],
+                ),
               ),
-              SizedBox(height: 10),
+              W.gap(height: 10),
               TextField(
                 controller: _emailController,
-                decoration: InputDecoration(labelText: "Email"),
+                decoration: InputDecoration(
+                  labelText: "Email",
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.grey[800],
+                ),
               ),
-              SizedBox(height: 10),
+              W.gap(height: 10),
               TextField(
                 controller: _passwordController,
-                decoration: InputDecoration(labelText: "Password"),
+                decoration: InputDecoration(
+                  labelText: "Password",
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.grey[800],
+                ),
                 obscureText: true,
               ),
-              SizedBox(height: 20),
+              W.gap(height: 20),
 
               // Gunakan Obx untuk listen ke state 'isLoading'
               Obx(() {
                 return controller.isLoading.value
                     ? CircularProgressIndicator()
-                    : ElevatedButton(
+                    : W.button(
+                        width: Get.width,
+                        child: W.text(data: "Sign Up"),
                         onPressed: () {
-                          // Panggil fungsi di controller
                           controller.signUpUser(
-                            _usernameController.text,
-                            _fullNameController.text,
                             _emailController.text,
                             _passwordController.text,
+                            _fullNameController.text,
+                            _usernameController.text,
                           );
                         },
-                        child: Text("Sign Up"),
+                        backgroundColor: Colors.blueAccent,
                       );
               }),
-              SizedBox(height: 24), // Beri jarak
+              W.gap(height: 24), // Beri jarak
 
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,

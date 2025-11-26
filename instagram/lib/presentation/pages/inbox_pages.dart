@@ -51,29 +51,59 @@ class InboxPage extends StatelessWidget {
                   displayImage = CachedNetworkImageProvider(otherUser.profileImageUrl!);
                 }
               }
+              final bool isUnread = room.isUnread;
+              final FontWeight fontWeight = isUnread ? FontWeight.bold : FontWeight.normal;
+              final Color textColor = isUnread ? Colors.white : Colors.grey;
 
               return ListTile(
                 leading: CircleAvatar(
                   radius: 24,
                   backgroundColor: Colors.grey[800],
                   backgroundImage: displayImage,
-                  child: (displayImage == null) 
-                      ? Icon(Icons.person, color: Colors.grey[400]) 
-                      : null,
+                  child: (displayImage == null) ? Icon(Icons.person, color: Colors.grey[400]) : null,
                 ),
+                
+                // TITLE (USERNAME)
                 title: W.text(
-                  data: displayUsername, // <-- Akan berubah otomatis
-                  fontWeight: FontWeight.bold,
+                  data: displayUsername,
+                  fontWeight: isUnread ? FontWeight.bold : FontWeight.w600, // Lebih tebal jika unread
+                  color: Colors.white,
                 ),
-                subtitle: W.text(
-                  data: room.lastMessage,
-                  color: Colors.grey,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                
+                // SUBTITLE (PESAN + WAKTU)
+                subtitle: Row(
+                  children: [
+                    Expanded(
+                      child: W.text(
+                        data: room.lastMessage,
+                        color: textColor, // Putih jika unread, Abu jika read
+                        fontWeight: fontWeight, // Bold jika unread
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    W.gap(width: 8),
+                    
+                    // WAKTU
+                    W.text(
+                      data: _formatTime(room.lastTimestamp),
+                      color: Colors.grey,
+                      fontSize: 12,
+                    ),
+                  ],
                 ),
+                
+                // TRAILING (TITIK BIRU)
+                trailing: isUnread 
+                    ? Container(
+                        width: 10, height: 10,
+                        decoration: BoxDecoration(color: Colors.blue, shape: BoxShape.circle),
+                      )
+                    : null,
+                
                 onTap: () {
-                  // Buka Chat Room
-                  Get.to(() => ChatPage(otherUserId: room.otherUserId));
+                  // Panggil fungsi controller agar database di-update (baca)
+                  controller.openChat(room.id, room.otherUserId);
                 },
               );
             });
@@ -84,3 +114,19 @@ class InboxPage extends StatelessWidget {
     );
   }
 }
+String _formatTime(DateTime timestamp) {
+    final now = DateTime.now();
+    final diff = now.difference(timestamp);
+
+    if (diff.inSeconds < 60) {
+      return "Sekarang";
+    } else if (diff.inMinutes < 60) {
+      return "${diff.inMinutes}m";
+    } else if (diff.inHours < 24) {
+      return "${diff.inHours}j";
+    } else if (diff.inDays < 7) {
+      return "${diff.inDays}h";
+    } else {
+      return "${timestamp.day}/${timestamp.month}";
+    }
+  }

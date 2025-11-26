@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:instagram/presentation/controllers/feed_controller.dart';
+import 'package:instagram/presentation/controllers/inbox_controller.dart';
+import 'package:instagram/presentation/controllers/notification_controller.dart';
 import 'package:instagram/presentation/controllers/story_controller.dart';
 import 'package:instagram/presentation/controllers/upload_story_controller.dart';
 import 'package:instagram/presentation/pages/activity_pages.dart';
@@ -28,6 +30,8 @@ class FeedPage extends StatelessWidget {
     UploadStoryController(),
     tag: "UploadStoryController",
   );
+  final NotificationController notificationController = Get.put(NotificationController());
+  final InboxController inboxController = Get.put(InboxController());
 
   @override
   Widget build(BuildContext context) {
@@ -45,14 +49,26 @@ class FeedPage extends StatelessWidget {
             onPressed: () => uploadStoryController.pickAndUploadStory(),
           ),
           W.gap(width: 10),
-          IconButton(
-            icon: Icon(Icons.favorite_border, size: 28),
-            onPressed: () => Get.to(() => ActivityPage()),
-          ),
-          IconButton(
-            icon: Icon(Icons.send_outlined, size: 28),
-            onPressed: () => Get.to(() => InboxPage()),
-          ),
+        Obx(() => RedDotIconButton(
+            icon: Icons.favorite_border,
+            showBadge: notificationController.hasUnread.value,
+            onPressed: () {
+              // Matikan badge saat diklik
+              notificationController.markAsRead();
+              Get.to(() => ActivityPage());
+            },
+          )),
+
+          // --- TOMBOL DM DENGAN BADGE ---
+          Obx(() => RedDotIconButton(
+            icon: Icons.send_outlined,
+            showBadge: inboxController.hasUnreadMessages.value,
+            onPressed: () {
+              // Matikan badge saat diklik
+              inboxController.markAsRead();
+              Get.to(() => InboxPage());
+            },
+          )),
           W.gap(width: 10),
         ],
       ),

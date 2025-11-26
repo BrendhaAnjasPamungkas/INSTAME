@@ -20,6 +20,7 @@ class NotificationController extends GetxController {
   
   // --- TAMBAHAN: Cache User untuk Data Live ---
   var userCache = <String, UserEntity>{}.obs; 
+  var hasUnread = false.obs;
   // ------------------------------------------
 
   StreamSubscription? _updateSubscription;
@@ -36,18 +37,27 @@ class NotificationController extends GetxController {
     });
   }
 
-  void fetchNotifications() {
+ void fetchNotifications() {
     final uid = auth.currentUser?.uid;
     if (uid != null) {
       notifications.bindStream(getNotificationsUseCase.execute(uid).map((either) {
         return either.fold(
           (l) => [], 
           (r) {
-            // --- SETIAP ADA NOTIFIKASI, AMBIL DATA USER TERBARU ---
+            // --- LOGIKA BADGE ---
+            // Jika ada notifikasi baru masuk, nyalakan badge
+            // (Logika sederhana: jika list tidak kosong, anggap ada baru)
+            // Untuk logic sempurna, kita butuh field 'isRead' di database.
+            if (r.isNotEmpty) {
+               // Cek apakah jumlah berubah (tanda ada yg baru) atau sekedar init
+               // Untuk simpelnya: nyalakan saja jika ada notif
+               hasUnread.value = true;
+            }
+            // --------------------
+
             for (var notif in r) {
               _fetchUserIfNotCached(notif.fromUserId);
             }
-            // -----------------------------------------------------
             return r;
           }
         );
@@ -67,6 +77,9 @@ class NotificationController extends GetxController {
         userCache[uid] = user; // Simpan ke cache (memicu Obx di UI)
       }
     );
+  }
+  void markAsRead() {
+    hasUnread.value = false;
   }
   // -------------------------------
 

@@ -1,7 +1,49 @@
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter/material.dart';
+// ... imports
 
+class RedDotIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool showBadge; // Trigger titik merah
+  final double size;
+
+  const RedDotIconButton({
+    Key? key,
+    required this.icon,
+    required this.onPressed,
+    this.showBadge = false,
+    this.size = 28,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      clipBehavior: Clip.none, // Agar titik bisa sedikit keluar icon
+      children: [
+        IconButton(
+          icon: Icon(icon, size: size),
+          onPressed: onPressed,
+        ),
+        if (showBadge)
+          Positioned(
+            top: 10, // Sesuaikan posisi
+            right: 10,
+            child: Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.black, width: 1.5), // Border agar kontras
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
 class MainWidget {
   Widget text({
     required String data,
