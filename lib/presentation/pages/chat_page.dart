@@ -1,0 +1,168 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:instagram/injection_container.dart';
+import 'package:instagram/presentation/controllers/chat_controller.dart';
+import 'package:instagram/presentation/pages/profile_page.dart';
+import 'package:instagram/presentation/widgets/chat_bubblw.dart';
+import 'package:instagram/presentation/widgets/main_widget.dart';
+
+class ChatPage extends StatelessWidget {
+  final String otherUserId;
+
+  const ChatPage({Key? key, required this.otherUserId}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    // Buat controller dengan TAG unik (ID user lawan)
+    // supaya bisa chat dengan banyak orang berbeda tanpa bentrok
+    final ChatController controller = Get.put(
+      ChatController(otherUserId: otherUserId),
+      tag: "chat_$otherUserId",
+    );
+
+    final currentUserId = locator<FirebaseAuth>().currentUser?.uid;
+
+    return Scaffold(
+      appBar: AppBar(
+        titleSpacing: 0,
+        title: Obx(() {
+          final user = controller.otherUser.value;
+          if (user == null) return W.text(data: "Loading...");
+
+          // --- BUNGKUS DENGAN GESTURE DETECTOR ---
+          return GestureDetector(
+            onTap: () {
+              // Navigasi ke Profil Lawan Bicara
+              Get.to(() => ProfilePage(userId: otherUserId));
+            },
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: Colors.grey[800],
+                  // Cek apakah URL tidak null DAN tidak kosong
+                  backgroundImage:
+                      (user.profileImageUrl != null &&
+                          user.profileImageUrl!.isNotEmpty)
+                      ? CachedNetworkImageProvider(user.profileImageUrl!)
+                      : null,
+                  // Jika URL null atau kosong, tampilkan Icon
+                  child:
+                      (user.profileImageUrl == null ||
+                          user.profileImageUrl!.isEmpty)
+                      ? Icon(
+                          Icons.person,
+                          size: 20,
+                          color: Colors.grey[400],
+                        ) // Warna ikon terang
+                      : null,
+                ),
+                W.gap(width: 10),
+                W.text(
+                  data: user.username,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ],
+            ),
+          );
+          // ---------------------------------------
+        }),
+      ),
+      body: Column(
+        children: [
+          // 1. LIST PESAN
+          Expanded(
+            child: Obx(() {
+              if (controller.messages.isEmpty) {
+                return Center(
+                  child: W.text(
+                    data: "Mulai percakapan 👋",
+                    color: Colors.grey,
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                controller: controller.scrollController,
+                itemCount: controller.messages.length,
+                padding: EdgeInsets.only(bottom: 10, top: 10),
+                itemBuilder: (context, index) {
+                  final msg = controller.messages[index];
+                  final bool isMe = msg.senderId == currentUserId;
+
+                  return GestureDetector(
+                    onLongPress: () {
+                      // Hanya boleh hapus pesan SENDIRI
+                      if (isMe) {
+                        controller.deleteMessage(msg);
+                      }
+                    },
+                    child: ChatBubble(
+                      text: msg.text,
+                      isMe: isMe,
+                      type: msg.type,
+                      mediaUrl: msg.mediaUrl,
+                    ),
+                  );
+                },
+              );
+            }),
+          ),
+
+          // 2. INPUT TEXT
+          Padding(
+            padding: EdgeInsets.only(bottom: 40),
+            child: Container(
+              width: Get.width,
+              padding: EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.black,
+                border: Border(top: BorderSide(color: Colors.grey[900]!)),
+              ),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.add_circle_outline,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                    onPressed: () => controller.pickAndSendMedia(),
+                  ),
+                  Expanded(
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[900],
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: TextField(
+                        // Gunakan TextField biasa agar lebih fleksibel di row
+                        controller: controller.textController,
+                        style: TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: "Kirim pesan...",
+                          hintStyle: TextStyle(color: Colors.grey[500]),
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  W.gap(width: 8),
+                  // Tombol Kirim
+                  IconButton(
+                    icon: Icon(Icons.send, color: Colors.blue),
+                    onPressed: () => controller.sendMessage(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
