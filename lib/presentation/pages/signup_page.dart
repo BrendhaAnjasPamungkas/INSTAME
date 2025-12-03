@@ -87,10 +87,12 @@ class SignUpPage extends StatelessWidget {
                         child: W.text(data: "Sign Up"),
                         onPressed: () {
                           controller.signUpUser(
+                            _usernameController.text,
+                            _fullNameController.text,
                             _emailController.text,
                             _passwordController.text,
-                            _fullNameController.text,
-                            _usernameController.text,
+                            
+                            
                           );
                         },
                         backgroundColor: Colors.blueAccent,

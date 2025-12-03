@@ -85,10 +85,13 @@ class AuthController extends GetxController {
 
   // 2. MODIFIKASI SIGN UP (Kirim Verifikasi)
   Future<void> signUpUser(String username, String fullName, String email, String password) async {
+    
+    final cleanEmail = email.trim();
+    print("DEBUG SIGNUP: Mencoba daftar dengan email: '$cleanEmail'");
     isLoading.value = true;
 
     final result = await signUpUseCase(
-      SignUpParams(username: username, fullName: fullName, email: email, password: password),
+      SignUpParams(username: username, fullName: fullName, email: cleanEmail, password: password),
     );
 
     result.fold(
